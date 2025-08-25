@@ -1,6 +1,5 @@
 # Datos y resultados (excluir completamente)
 data/
-results/
 logs/
 
 # Modelos pesados
