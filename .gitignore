@@ -1,0 +1,13 @@
+# Datos y resultados (excluir completamente)
+data/
+results/
+logs/
+
+# Modelos pesados
+*.pt
+
+# Cosas comunes que no quieres en el repo (opcional)
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.env

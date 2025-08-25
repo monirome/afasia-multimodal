@@ -1,0 +1,11 @@
+pandas
+pylangacq
+pycaret
+optuna
+xgboost
+shap
+kenlm
+boruta
+transformers 
+torch
+tensorflow

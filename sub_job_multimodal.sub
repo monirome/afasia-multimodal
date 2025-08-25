@@ -1,0 +1,23 @@
+# extract_llm_single_test.sub  ➊ con logs únicos ➋ con GPU real
+
+executable = /lhome/ext/upc150/upc1503/venv/bin/python3
+arguments  = afasia_multimodal_pipeline.py
+
+# ficheros separados por job
+output = logs/extract_llm_$(Cluster).$(Process).out
+error  = logs/extract_llm_$(Cluster).$(Process).err
+log    = logs/extract_llm_$(Cluster).$(Process).log
+
+# recursos de CPU y RAM
+request_cpus   = 4
+request_memory = 16000
+
+# --- petición explícita de GPU ---
+request_cpus   = 4
+request_memory = 16000
+request_gpus   = 1         
+
+# ----------------------------------
+
+should_transfer_files = NO
+queue
