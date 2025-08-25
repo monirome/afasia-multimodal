@@ -1,0 +1,27 @@
+Dimensiones usadas en este modelo:
+Total: 24
+
+- words_per_min
+- words_per_utt
+- W
+- OCW
+- nouns
+- verbs
+- nouns_per_verb
+- function_words
+- diversidad_lexica
+- F0semitoneFrom27.5Hz_sma3nz_amean
+- loudness_sma3_amean
+- mfcc1_mean
+- mfcc2_mean
+- mfcc3_mean
+- mfcc4_mean
+- mfcc5_mean
+- mfcc6_mean
+- mfcc7_mean
+- mfcc8_mean
+- mfcc9_mean
+- mfcc10_mean
+- mfcc11_mean
+- mfcc12_mean
+- mfcc13_mean

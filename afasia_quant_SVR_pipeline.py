@@ -115,7 +115,7 @@ if __name__ == "__main__":
     if os.path.isfile(CSV_CAT):
         dfs.append(pd.read_csv(CSV_CAT,  encoding="utf-8"))
     if not dfs:
-        log.error("❌  No se encontraron los CSV esperados.")
+        log.error("No se encontraron los CSV esperados.")
         sys.exit(1)
 
     df = pd.concat(dfs, ignore_index=True)
@@ -126,6 +126,13 @@ if __name__ == "__main__":
     feat_cols = [c for c in CANDIDATE_COLS if c in df.columns]
     if miss := sorted(set(CANDIDATE_COLS) - set(feat_cols)):
         log.warning(f"Features ausentes y NO usadas: {miss}")
+
+    # 5.5 bis Guardar las variables usadas en este experimento
+    with open(run_dir / "features_used.txt", "w", encoding="utf-8") as f:
+        f.write("Dimensiones usadas en este modelo:\n")
+        f.write(f"Total: {len(feat_cols)}\n\n")
+        for col in feat_cols:
+            f.write(f"- {col}\n")
 
     # 5.6 Agregar por paciente
     df_pat = df.groupby("CIP").apply(agg_patient, feat_cols=feat_cols).reset_index()
@@ -200,4 +207,4 @@ if __name__ == "__main__":
     # 5.11 Guardar scaler (solo TRAIN)
     joblib.dump(StandardScaler().fit(X_tr), run_dir/"scaler.pkl")
 
-    log.info("✔︎ Proceso completado — archivos en %s", run_dir)
+    log.info("Proceso completado — archivos en %s", run_dir)

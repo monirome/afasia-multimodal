@@ -8,4 +8,4 @@
 [INFO] VAL       MAE=11.72  R²=0.44  ρ=0.64
 [INFO] INT       MAE=13.61  R²=0.20  ρ=0.48
 [INFO] EXT       MAE=27.10  R²=-0.20  ρ=1.00
-[INFO] ✔︎ Proceso completado — archivos en results/SVR_20250808_081438
+[INFO] Proceso completado — archivos en results/SVR_20250825_173057
