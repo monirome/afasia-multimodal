@@ -29,8 +29,6 @@ Salidas en results/SVR_DEN_PAPER_<timestamp>/
 ---------------------------------------------
   • console.log, script copiado, features_used.txt
   • cv_en_preds.csv, cv_en_scatter.png
-  • en_in_raw_preds.csv, en_in_raw_scatter.png
-  • en_in_cal_preds.csv, en_in_cal_scatter.png
   • int_raw_preds.csv,  int_raw_scatter.png
   • ext_raw_preds.csv,  ext_raw_scatter.png
   • int_cal_preds.csv,  int_cal_scatter.png
@@ -278,28 +276,6 @@ if __name__ == "__main__":
     iso = IsotonicRegression(y_min=0, y_max=100, out_of_bounds="clip")
     iso.fit(cv_pred_en, y_en)
     joblib.dump(iso, run_dir/"calibrator_en.pkl")
-
-    # -------------------- EN_in (diagnóstico in-sample) ---------------------
-    # Predicción del modelo final entrenado con TODO EN sobre el propio EN.
-    # Útil para analizar bias/varianza. NO es métrica de generalización.
-    p_en_in_raw = best_en.predict(X_en).clip(0, 100)
-    mae_in_raw, r2_in_raw, rho_in_raw = scatter(
-        y_en, p_en_in_raw, "EN_IN_RAW", run_dir/"en_in_raw_scatter.png"
-    )
-    pd.DataFrame({
-        "CIP": df_en.CIP, "QA": y_en, "pred": p_en_in_raw, "err": p_en_in_raw - y_en
-    }).to_csv(run_dir/"en_in_raw_preds.csv", index=False)
-    log.info("EN_IN (RAW) → MAE %.2f | R² %.2f | ρ %.2f", mae_in_raw, r2_in_raw, rho_in_raw)
-
-    # Opcional: aplicar calibración isotónica también a EN_in (diagnóstico)
-    p_en_in_cal = iso.predict(p_en_in_raw).clip(0, 100)
-    mae_in_cal, r2_in_cal, rho_in_cal = scatter(
-        y_en, p_en_in_cal, "EN_IN_CAL", run_dir/"en_in_cal_scatter.png"
-    )
-    pd.DataFrame({
-        "CIP": df_en.CIP, "QA": y_en, "pred_cal": p_en_in_cal, "err_cal": p_en_in_cal - y_en
-    }).to_csv(run_dir/"en_in_cal_preds.csv", index=False)
-    log.info("EN_IN (CAL) → MAE %.2f | R² %.2f | ρ %.2f", mae_in_cal, r2_in_cal, rho_in_cal)
 
     # -------------------- Evaluación en INT (ES) y EXT (CA) -----------------
     def eval_and_save(tag, df_split):

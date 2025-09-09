@@ -19,7 +19,6 @@ Pasos
 5. Pipeline  Imputer→Scaler→SVR  +  GridSearchCV (MAE).
 6. Logs, CSV y gráficas en   results/SVR_<timestamp>/
 
-Autor: ChatGPT • 2025-08-08
 """
 
 # -------------------------------------------------------------------
