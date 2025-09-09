@@ -1,2 +1,15 @@
 [INFO] ------------------------------------------------------------
 [INFO] Inicio pipeline SVR con features DEN (protocolo paper)
+[INFO] Agregando features DEN a nivel paciente …
+[INFO] Total features DEN construidas: 28
+[INFO] Pacientes  en:386  es:8  ca:5
+[INFO] GridSearchCV (SVR) solo EN con GroupKFold=4 …
+[INFO] Mejor params CV-EN: {'svr__C': 10, 'svr__epsilon': 1, 'svr__kernel': 'rbf', 'svr__shrinking': True}
+[INFO] CV-EN     → MAE 9.78 | R² 0.58 | ρ 0.74
+[INFO] EN_IN (RAW) → MAE 7.34 | R² 0.73 | ρ 0.83
+[INFO] EN_IN (CAL) → MAE 7.46 | R² 0.74 | ρ 0.83
+[INFO] INT        (RAW) → MAE 14.93 | R² 0.14 | ρ 0.26
+[INFO] INT        (CAL) → MAE 15.34 | R² 0.10 | ρ 0.31
+[INFO] EXT        (RAW) → MAE 25.98 | R² -0.03 | ρ 0.60
+[INFO] EXT        (CAL) → MAE 24.97 | R² 0.06 | ρ 0.87
+[INFO] Proceso completado — resultados en results/SVR_DEN_PAPER_20250909_121616
