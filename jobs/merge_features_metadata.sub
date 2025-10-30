@@ -1,0 +1,17 @@
+# merge_features_metadata.sub
+# Combina features DEN+DYS con metadata (QA + idioma)
+
+executable = /lhome/ext/upc150/upc1503/venv/bin/python3
+arguments  = ../04_merge/merge_features_metadata.py
+
+output = ../logs/merge_$(Cluster).$(Process).out
+error  = ../logs/merge_$(Cluster).$(Process).err
+log    = ../logs/merge_$(Cluster).$(Process).log
+
+request_cpus   = 1
+request_memory = 8000
+
+environment = "PYTHONUNBUFFERED=1"
+should_transfer_files = NO
+
+queue

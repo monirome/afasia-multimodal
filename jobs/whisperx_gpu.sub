@@ -1,0 +1,21 @@
+# whisperx_gpu.sub
+# Generacion de word alignments con WhisperX (GPU - TODOS los audios)
+
+executable = /lhome/ext/upc150/upc1503/venv/bin/python3
+arguments  = ../02_alignments/generate_whisperx_alignments.py --audio_base /lustre/ific.uv.es/ml/upc150/upc1503/data/audios_completos --output ../data/word_alignments_ALL.csv --model large-v2 --device cuda
+
+output = ../logs/whisperx_gpu_$(Cluster).$(Process).out
+error  = ../logs/whisperx_gpu_$(Cluster).$(Process).err
+log    = ../logs/whisperx_gpu_$(Cluster).$(Process).log
+
+request_cpus   = 4
+request_memory = 32000
+request_gpus   = 1
+
+# Requerir GPU con CUDA >= 7.0 (opcional pero recomendado)
+requirements = (CUDACapability >= 7.0)
+
+environment = "PYTHONUNBUFFERED=1"
+should_transfer_files = NO
+
+queue

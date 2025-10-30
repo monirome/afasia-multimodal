@@ -1,0 +1,17 @@
+# svr_pipeline.sub
+# Entrenamiento SVR con features DEN+DYS (NO necesita GPU)
+
+executable = /lhome/ext/upc150/upc1503/venv/bin/python3
+arguments  = ../05_models/train_svr_den_dys.py
+
+output = ../logs/svr_$(Cluster).$(Process).out
+error  = ../logs/svr_$(Cluster).$(Process).err
+log    = ../logs/svr_$(Cluster).$(Process).log
+
+request_cpus   = 4
+request_memory = 16000
+
+environment = "PYTHONUNBUFFERED=1"
+should_transfer_files = NO
+
+queue

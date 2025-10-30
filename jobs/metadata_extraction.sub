@@ -1,0 +1,17 @@
+# metadata_extraction.sub
+# Extraccion de metadata (QA + idioma) desde CSV AphasiaBank
+
+executable = /lhome/ext/upc150/upc1503/venv/bin/python3
+arguments  = ../01_metadata/extract_metadata_from_csv.py
+
+output = ../logs/metadata_$(Cluster).$(Process).out
+error  = ../logs/metadata_$(Cluster).$(Process).err
+log    = ../logs/metadata_$(Cluster).$(Process).log
+
+request_cpus   = 1
+request_memory = 8000
+
+environment = "PYTHONUNBUFFERED=1"
+should_transfer_files = NO
+
+queue
