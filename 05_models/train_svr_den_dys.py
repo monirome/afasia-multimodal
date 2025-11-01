@@ -2,9 +2,9 @@
 # train_svr_den_dys.py
 # -*- coding: utf-8 -*-
 """
-SVR - Prediccion WAB-AQ con features DEN+DYS
+SVR - Prediccion WAB-AQ con features DEN+DYS+LEX
 Lee datos desde /lustre/ (archivos con EN, ES, CA)
-Incluye severity classification y metricas completas
+Incluye severity classification, metricas completas y análisis de interpretabilidad (SHAP + Permutation)
 """
 
 import os
@@ -16,7 +16,6 @@ import shutil
 import warnings
 warnings.filterwarnings("ignore")
 
-# FIX: stdout sin buffer + limitar hilos BLAS
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
@@ -54,8 +53,8 @@ CSV_CAT_DYS = os.path.join(DATA_LUSTRE, "df_catalan_pos_metrics_with_dys.csv")
 CSV_DYS_PAT = os.path.join(DATA_LUSTRE, "dys_pauses_by_patient.csv")
 
 # Resultados en /lhome/
-PROJECT_BASE = "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments"
-RESULTS_BASE = os.path.join(PROJECT_BASE, "resultados_svr")
+PROJECT_BASE = "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025"
+RESULTS_BASE = os.path.join(PROJECT_BASE, "outputs/experiments/resultados_svr")
 
 os.makedirs(RESULTS_BASE, exist_ok=True)
 
@@ -483,6 +482,243 @@ def evaluate_split(y_true, y_pred, split_name, run_dir, log, df_ids=None):
     
     return metrics_cont, metrics_int, sev_metrics
 
+# ======================== INTERPRETABILIDAD ========================
+def compute_feature_importance_permutation(model, X, y, feature_names, run_dir, log, n_repeats=10):
+    """
+    Calcula importancia de features usando Permutation Importance
+    No requiere librerias adicionales (usa sklearn)
+    """
+    from sklearn.inspection import permutation_importance
+    
+    log.info("\n{}".format("="*70))
+    log.info("PERMUTATION IMPORTANCE")
+    log.info("="*70)
+    log.info("Calculando importancia por permutacion (n_repeats={})...".format(n_repeats))
+    log.info("  (esto puede tomar varios minutos)")
+    
+    perm_importance = permutation_importance(
+        model, X, y,
+        n_repeats=n_repeats,
+        random_state=42,
+        scoring='neg_mean_absolute_error',
+        n_jobs=1
+    )
+    
+    # Crear DataFrame con resultados
+    importance_df = pd.DataFrame({
+        'feature': feature_names,
+        'importance_mean': perm_importance.importances_mean,
+        'importance_std': perm_importance.importances_std
+    })
+    
+    # Ordenar por importancia
+    importance_df = importance_df.sort_values('importance_mean', ascending=False)
+    
+    # Guardar
+    importance_df.to_csv(run_dir / "feature_importance_permutation.csv", index=False)
+    
+    # Log top 20
+    log.info("\nTop 20 features mas importantes:")
+    for idx, (i, row) in enumerate(importance_df.head(20).iterrows(), 1):
+        log.info("  {:2d}. {:40s} {:.4f} +/- {:.4f}".format(
+            idx, row['feature'], row['importance_mean'], row['importance_std']))
+    
+    # Grafico
+    plt.figure(figsize=(10, 12))
+    top_n = min(30, len(importance_df))
+    top_features = importance_df.head(top_n)
+    
+    plt.barh(range(top_n), top_features['importance_mean'].values, 
+             xerr=top_features['importance_std'].values,
+             alpha=0.8, color='steelblue', edgecolor='black')
+    plt.yticks(range(top_n), top_features['feature'].values, fontsize=9)
+    plt.xlabel('Permutation Importance (MAE decrease)', fontsize=12, fontweight='bold')
+    plt.title('Top {} Features - Permutation Importance'.format(top_n), 
+              fontsize=14, fontweight='bold', pad=20)
+    plt.gca().invert_yaxis()
+    plt.grid(axis='x', alpha=0.3, linestyle='--')
+    plt.tight_layout()
+    plt.savefig(run_dir / "feature_importance_permutation.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    log.info("\nGuardado: feature_importance_permutation.csv")
+    log.info("Guardado: feature_importance_permutation.png")
+    
+    return importance_df
+
+
+def compute_shap_values(model, X_train, X_test, feature_names, run_dir, log, max_samples=100):
+    """
+    Calcula SHAP values para interpretabilidad del modelo
+    Requiere: pip install shap
+    """
+    try:
+        import shap
+    except ImportError:
+        log.warning("SHAP no instalado. Saltando analisis SHAP.")
+        log.warning("Para instalar: pip install shap")
+        return None
+    
+    log.info("\n{}".format("="*70))
+    log.info("SHAP VALUES")
+    log.info("="*70)
+    log.info("Calculando SHAP values (esto puede tomar varios minutos)...")
+    
+    # Usar subset si hay muchos samples (por velocidad)
+    if len(X_train) > max_samples:
+        log.info("  Usando {} samples aleatorios como background".format(max_samples))
+        np.random.seed(42)
+        bg_idx = np.random.choice(len(X_train), max_samples, replace=False)
+        X_bg = X_train[bg_idx]
+    else:
+        X_bg = X_train
+        log.info("  Usando {} samples como background".format(len(X_bg)))
+    
+    # Crear explainer (KernelExplainer funciona con cualquier modelo)
+    log.info("  Creando SHAP explainer...")
+    explainer = shap.KernelExplainer(model.predict, X_bg)
+    
+    # Calcular SHAP values en test set
+    if len(X_test) > max_samples:
+        log.info("  Calculando SHAP values para {} samples de test...".format(max_samples))
+        np.random.seed(42)
+        test_idx = np.random.choice(len(X_test), max_samples, replace=False)
+        X_test_sample = X_test[test_idx]
+    else:
+        log.info("  Calculando SHAP values para {} samples de test...".format(len(X_test)))
+        X_test_sample = X_test
+    
+    shap_values = explainer.shap_values(X_test_sample)
+    
+    # Guardar valores
+    shap_df = pd.DataFrame(shap_values, columns=feature_names)
+    shap_df.to_csv(run_dir / "shap_values.csv", index=False)
+    
+    # Feature importance global (mean absolute SHAP)
+    importance_df = pd.DataFrame({
+        'feature': feature_names,
+        'importance': np.abs(shap_values).mean(axis=0)
+    }).sort_values('importance', ascending=False)
+    
+    importance_df.to_csv(run_dir / "feature_importance_shap.csv", index=False)
+    
+    log.info("\nTop 20 features mas importantes (SHAP):")
+    for idx, (i, row) in enumerate(importance_df.head(20).iterrows(), 1):
+        log.info("  {:2d}. {:40s} {:.4f}".format(
+            idx, row['feature'], row['importance']))
+    
+    # Graficos SHAP
+    log.info("\nGenerando graficos SHAP...")
+    
+    try:
+        # 1. Summary plot (beeswarm)
+        plt.figure(figsize=(10, 12))
+        shap.summary_plot(shap_values, X_test_sample, 
+                         feature_names=feature_names,
+                         show=False, max_display=30)
+        plt.tight_layout()
+        plt.savefig(run_dir / "shap_summary_beeswarm.png", dpi=150, bbox_inches='tight')
+        plt.close()
+        
+        # 2. Bar plot (importancia global)
+        plt.figure(figsize=(10, 12))
+        shap.summary_plot(shap_values, X_test_sample,
+                         feature_names=feature_names,
+                         plot_type="bar", show=False, max_display=30)
+        plt.tight_layout()
+        plt.savefig(run_dir / "shap_summary_bar.png", dpi=150, bbox_inches='tight')
+        plt.close()
+        
+        log.info("  Guardado: shap_summary_beeswarm.png")
+        log.info("  Guardado: shap_summary_bar.png")
+    except Exception as e:
+        log.warning("  Error generando graficos SHAP: {}".format(e))
+    
+    log.info("Guardado: shap_values.csv")
+    log.info("Guardado: feature_importance_shap.csv")
+    
+    return importance_df
+
+
+def analyze_feature_groups(importance_df, run_dir, log, method_name=""):
+    """
+    Analiza importancia por grupos de features (DEN, DYS, LEX)
+    """
+    if importance_df is None or len(importance_df) == 0:
+        return None
+    
+    log.info("\n{}".format("="*70))
+    log.info("ANALISIS POR GRUPOS DE FEATURES{}".format(
+        " ({})".format(method_name) if method_name else ""))
+    log.info("="*70)
+    
+    # Clasificar features por grupo
+    def get_group(feat_name):
+        if feat_name.startswith('den_'):
+            return 'DEN'
+        elif feat_name.startswith('dys_'):
+            return 'DYS'
+        elif feat_name.startswith('lex_'):
+            return 'LEX'
+        else:
+            return 'OTHER'
+    
+    importance_df = importance_df.copy()
+    importance_df['group'] = importance_df['feature'].apply(get_group)
+    
+    # Determinar columna de importancia
+    imp_col = 'importance_mean' if 'importance_mean' in importance_df.columns else 'importance'
+    
+    # Importancia total por grupo
+    group_stats = importance_df.groupby('group')[imp_col].agg(['sum', 'mean', 'count'])
+    group_stats = group_stats.sort_values('sum', ascending=False)
+    
+    log.info("\nImportancia por grupo:")
+    log.info("  {:<8s} {:>10s} {:>10s} {:>8s} {:>10s}".format(
+        "Grupo", "Total", "Media", "Count", "% Total"))
+    log.info("  " + "-"*60)
+    
+    total_importance = group_stats['sum'].sum()
+    for group in group_stats.index:
+        total = group_stats.loc[group, 'sum']
+        mean = group_stats.loc[group, 'mean']
+        count = int(group_stats.loc[group, 'count'])
+        pct = 100 * total / total_importance if total_importance > 0 else 0
+        log.info("  {:<8s} {:>10.4f} {:>10.4f} {:>8d} {:>9.1f}%".format(
+            group, total, mean, count, pct))
+    
+    # Grafico
+    plt.figure(figsize=(10, 6))
+    colors = {'DEN': 'steelblue', 'DYS': 'coral', 'LEX': 'mediumseagreen', 'OTHER': 'gray'}
+    bar_colors = [colors.get(g, 'gray') for g in group_stats.index]
+    
+    plt.bar(group_stats.index, group_stats['sum'], 
+            alpha=0.8, edgecolor='black', linewidth=1.5, color=bar_colors)
+    plt.xlabel('Grupo de Features', fontsize=12, fontweight='bold')
+    plt.ylabel('Importancia Total', fontsize=12, fontweight='bold')
+    
+    title = 'Importancia por Grupo de Features'
+    if method_name:
+        title += ' ({})'.format(method_name)
+    plt.title(title, fontsize=14, fontweight='bold', pad=20)
+    
+    plt.grid(axis='y', alpha=0.3, linestyle='--')
+    plt.tight_layout()
+    
+    filename = "feature_importance_by_group"
+    if method_name:
+        filename += "_{}".format(method_name.lower().replace(" ", "_"))
+    plt.savefig(run_dir / "{}.png".format(filename), dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    # Guardar
+    group_stats.to_csv(run_dir / "{}.csv".format(filename))
+    
+    log.info("\nGuardado: {}.csv".format(filename))
+    log.info("Guardado: {}.png".format(filename))
+    
+    return group_stats
+
 # ======================== MAIN ========================
 def main():
     # Setup
@@ -492,7 +728,7 @@ def main():
     
     log = set_logger(run_dir)
     log.info("="*70)
-    log.info("INICIO: SVR con datos desde /lustre/")
+    log.info("INICIO: Prediccion WAB-AQ con features DEN+DYS+LEX")
     log.info("="*70)
     log.info("Directorio de resultados: {}".format(run_dir))
     log.info("Timestamp: {}".format(ts))
@@ -504,7 +740,7 @@ def main():
     
     # ==================== CARGAR DATOS ====================
     log.info("\n" + "="*70)
-    log.info("CARGANDO DATOS DESDE /lustre/")
+    log.info("CARGANDO DATOS")
     log.info("="*70)
     
     # Verificar archivos
@@ -514,11 +750,11 @@ def main():
             sys.exit(1)
     
     # Cargar CSVs
-    log.info("Cargando AphasiaBank (EN+ES)...")
+    log.info("Cargando AphasiaBank (EN+ES): {}".format(CSV_APH_DYS))
     df_aph = pd.read_csv(CSV_APH_DYS)
     log.info("  Chunks: {}".format(len(df_aph)))
     
-    log.info("Cargando Catalan (CA)...")
+    log.info("Cargando Catalan (CA): {}".format(CSV_CAT_DYS))
     df_cat = pd.read_csv(CSV_CAT_DYS)
     log.info("  Chunks: {}".format(len(df_cat)))
     
@@ -534,7 +770,10 @@ def main():
     df['lang'] = df.apply(detect_language, axis=1)
     
     log.info("\nDistribucion de chunks por idioma:")
-    log.info("{}".format(df['lang'].value_counts()))
+    for lang in ['en', 'es', 'ca']:
+        n = len(df[df['lang'] == lang])
+        log.info("  {}: {} chunks, {} pacientes".format(
+            lang.upper(), n, df[df['lang'] == lang]['CIP'].nunique()))
     
     # ==================== AGREGACION POR PACIENTE ====================
     log.info("\n" + "="*70)
@@ -553,10 +792,45 @@ def main():
     df_pat["lang"] = df.groupby("CIP")["lang"].first().values
     
     log.info("Total pacientes: {}".format(len(df_pat)))
-    log.info("\nPacientes por idioma:")
-    for lang in ['en', 'es', 'ca']:
-        n = len(df_pat[df_pat['lang'] == lang])
-        log.info("  {}: {}".format(lang.upper(), n))
+    
+    # ==================== CARGAR LEX FEATURES ====================
+    log.info("\n" + "="*70)
+    log.info("CARGANDO LEX FEATURES")
+    log.info("="*70)
+    
+    lex_file = os.path.join(PROJECT_BASE, "data/lex_features/lex_features_en.csv")
+    
+    if os.path.exists(lex_file):
+        log.info("Cargando: {}".format(lex_file))
+        lex_df = pd.read_csv(lex_file)
+        log.info("  LEX features: {} pacientes".format(len(lex_df)))
+        
+        # Renombrar patient_id a CIP para el merge
+        if 'patient_id' in lex_df.columns:
+            lex_df = lex_df.rename(columns={'patient_id': 'CIP'})
+        
+        # Merge con DEN+DYS (solo mantener columnas LEX)
+        lex_cols_to_merge = ['CIP'] + [c for c in lex_df.columns if c.startswith('lex_')]
+        lex_df_clean = lex_df[lex_cols_to_merge]
+        
+        df_pat = df_pat.merge(
+            lex_df_clean,
+            on='CIP',
+            how='left'
+        )
+        
+        n_lex_feats = len([c for c in df_pat.columns if c.startswith('lex_')])
+        log.info("  LEX features anadidas: {}".format(n_lex_feats))
+        log.info("  Pacientes con LEX: {}".format(df_pat['lex_ttr'].notna().sum()))
+        log.info("  Pacientes sin LEX (ES/CA): {}".format(df_pat['lex_ttr'].isna().sum()))
+        
+    else:
+        log.warning("LEX features no encontradas: {}".format(lex_file))
+        log.warning("Continuando solo con DEN+DYS (28 features)")
+        log.warning("\nPara anadir LEX features:")
+        log.warning("  1. cd /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/03_features")
+        log.warning("  2. python3 download_lex_databases.py")
+        log.warning("  3. python3 build_lex.py")
     
     # ==================== PREPARAR FEATURES ====================
     log.info("\n" + "="*70)
@@ -565,13 +839,15 @@ def main():
     
     den_cols = [c for c in df_pat.columns if c.startswith('den_')]
     dys_cols = [c for c in df_pat.columns if c.startswith('dys_')]
-    feat_cols = den_cols + dys_cols
+    lex_cols = [c for c in df_pat.columns if c.startswith('lex_')]
+    feat_cols = den_cols + dys_cols + lex_cols
     
     # Filtrar solo numericas
     feat_cols = df_pat[feat_cols].select_dtypes(include=[np.number]).columns.tolist()
     
     log.info("Features DEN: {}".format(len([c for c in feat_cols if c.startswith('den_')])))
     log.info("Features DYS: {}".format(len([c for c in feat_cols if c.startswith('dys_')])))
+    log.info("Features LEX: {}".format(len([c for c in feat_cols if c.startswith('lex_')])))
     log.info("TOTAL: {}".format(len(feat_cols)))
     
     if len(feat_cols) == 0:
@@ -592,6 +868,11 @@ def main():
         f.write("\nDYS features ({}):\n".format(
             len([c for c in feat_cols if c.startswith('dys_')])))
         for c in sorted([c for c in feat_cols if c.startswith('dys_')]):
+            f.write("  - {}\n".format(c))
+        
+        f.write("\nLEX features ({}):\n".format(
+            len([c for c in feat_cols if c.startswith('lex_')])))
+        for c in sorted([c for c in feat_cols if c.startswith('lex_')]):
             f.write("  - {}\n".format(c))
     
     # ==================== SPLITS POR IDIOMA ====================
@@ -744,6 +1025,38 @@ def main():
     joblib.dump(best_model, run_dir / "model_final_all_EN.pkl")
     log.info("Modelo final guardado: model_final_all_EN.pkl")
     
+    # ==================== INTERPRETABILIDAD ====================
+    log.info("\n" + "="*70)
+    log.info("ANALISIS DE INTERPRETABILIDAD")
+    log.info("="*70)
+    
+    # 1. Permutation Importance (siempre se ejecuta)
+    perm_importance = compute_feature_importance_permutation(
+        best_model, X_en, y_en, feat_cols, run_dir, log, n_repeats=10
+    )
+    
+    # 2. Analisis por grupos (Permutation)
+    analyze_feature_groups(perm_importance, run_dir, log, method_name="Permutation")
+    
+    # 3. SHAP values (si está instalado)
+    try:
+        # Usar una porción para test (últimos 20%)
+        n_test_shap = max(int(len(X_en) * 0.2), 20)
+        X_train_shap = X_en[:-n_test_shap]
+        X_test_shap = X_en[-n_test_shap:]
+        
+        shap_importance = compute_shap_values(
+            best_model, X_train_shap, X_test_shap, 
+            feat_cols, run_dir, log, max_samples=100
+        )
+        
+        if shap_importance is not None:
+            analyze_feature_groups(shap_importance, run_dir, log, method_name="SHAP")
+    
+    except Exception as e:
+        log.warning("No se pudo calcular SHAP values: {}".format(e))
+        log.warning("Para instalar SHAP: pip install shap")
+    
     # ==================== EVALUACION EN_IN ====================
     log.info("\n" + "="*70)
     log.info("EVALUACION IN-SAMPLE (EN)")
@@ -829,6 +1142,7 @@ def main():
     log.info("\nFeatures utilizadas:")
     log.info("  DEN: {}".format(len([c for c in feat_cols if c.startswith('den_')])))
     log.info("  DYS: {}".format(len([c for c in feat_cols if c.startswith('dys_')])))
+    log.info("  LEX: {}".format(len([c for c in feat_cols if c.startswith('lex_')])))
     log.info("  TOTAL: {}".format(len(feat_cols)))
     
     try:
