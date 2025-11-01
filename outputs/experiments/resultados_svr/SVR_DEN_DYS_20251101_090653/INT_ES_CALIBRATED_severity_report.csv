@@ -1,0 +1,8 @@
+,precision,recall,f1-score,support
+Very Severe,0.0,0.0,0.0,0.0
+Severe,0.0,0.0,0.0,0.0
+Moderate,0.25,1.0,0.4,1.0
+Mild,0.0,0.0,0.0,3.0
+micro avg,0.25,0.25,0.25,4.0
+macro avg,0.0625,0.25,0.1,4.0
+weighted avg,0.0625,0.25,0.1,4.0

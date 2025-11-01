@@ -1,0 +1,386 @@
+[2025-11-01 08:59:17] [INFO] ======================================================================
+[2025-11-01 08:59:17] [INFO] INICIO: Prediccion WAB-AQ con features DEN+DYS+LEX
+[2025-11-01 08:59:17] [INFO] ======================================================================
+[2025-11-01 08:59:17] [INFO] Directorio de resultados: /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_svr/SVR_DEN_DYS_20251101_085917
+[2025-11-01 08:59:17] [INFO] Timestamp: 20251101_085917
+[2025-11-01 08:59:17] [INFO] 
+======================================================================
+[2025-11-01 08:59:17] [INFO] CARGANDO DATOS
+[2025-11-01 08:59:17] [INFO] ======================================================================
+[2025-11-01 08:59:17] [INFO] Cargando AphasiaBank (EN+ES): /lustre/ific.uv.es/ml/upc150/upc1503/data/df_aphbank_pos_metrics_with_dys.csv
+[2025-11-01 08:59:27] [INFO]   Chunks: 77273
+[2025-11-01 08:59:27] [INFO] Cargando Catalan (CA): /lustre/ific.uv.es/ml/upc150/upc1503/data/df_catalan_pos_metrics_with_dys.csv
+[2025-11-01 08:59:27] [INFO]   Chunks: 543
+[2025-11-01 08:59:27] [INFO] Total chunks: 77816
+[2025-11-01 08:59:27] [INFO] Chunks con QA y CIP: 71220
+[2025-11-01 08:59:28] [INFO] 
+Distribucion de chunks por idioma:
+[2025-11-01 08:59:28] [INFO]   EN: 69862 chunks, 386 pacientes
+[2025-11-01 08:59:28] [INFO]   ES: 815 chunks, 4 pacientes
+[2025-11-01 08:59:28] [INFO]   CA: 543 chunks, 9 pacientes
+[2025-11-01 08:59:28] [INFO] 
+======================================================================
+[2025-11-01 08:59:28] [INFO] AGREGANDO FEATURES POR PACIENTE
+[2025-11-01 08:59:28] [INFO] ======================================================================
+[2025-11-01 08:59:28] [INFO] Construyendo features DEN...
+[2025-11-01 08:59:31] [INFO] Construyendo features DYS...
+[2025-11-01 08:59:32] [INFO] Total pacientes: 399
+[2025-11-01 08:59:32] [INFO] 
+======================================================================
+[2025-11-01 08:59:32] [INFO] CARGANDO LEX FEATURES
+[2025-11-01 08:59:32] [INFO] ======================================================================
+[2025-11-01 08:59:32] [INFO] Cargando: /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/data/lex_features/lex_features_en.csv
+[2025-11-01 08:59:32] [INFO]   LEX features: 1533 pacientes
+[2025-11-01 08:59:32] [INFO]   LEX features anadidas: 66
+[2025-11-01 08:59:32] [INFO]   Pacientes con LEX: 382
+[2025-11-01 08:59:32] [INFO]   Pacientes sin LEX (ES/CA): 17
+[2025-11-01 08:59:32] [INFO] 
+======================================================================
+[2025-11-01 08:59:32] [INFO] PREPARANDO FEATURES
+[2025-11-01 08:59:32] [INFO] ======================================================================
+[2025-11-01 08:59:32] [INFO] Features DEN: 28
+[2025-11-01 08:59:32] [INFO] Features DYS: 22
+[2025-11-01 08:59:32] [INFO] Features LEX: 66
+[2025-11-01 08:59:32] [INFO] TOTAL: 116
+[2025-11-01 08:59:32] [INFO] 
+======================================================================
+[2025-11-01 08:59:32] [INFO] PREPARANDO SPLITS
+[2025-11-01 08:59:32] [INFO] ======================================================================
+[2025-11-01 08:59:32] [INFO] Distribucion por idioma:
+[2025-11-01 08:59:32] [INFO]   EN (train):               386 pacientes
+[2025-11-01 08:59:32] [INFO]   ES (internal validation): 4 pacientes
+[2025-11-01 08:59:32] [INFO]   CA (external test):       9 pacientes
+[2025-11-01 08:59:32] [INFO] 
+Datos de entrenamiento (EN):
+[2025-11-01 08:59:32] [INFO]   X shape: (386, 116)
+[2025-11-01 08:59:32] [INFO]   y shape: (386,)
+[2025-11-01 08:59:32] [INFO]   Grupos unicos: 386
+[2025-11-01 08:59:32] [INFO]   QA range: [10.8, 99.6]
+[2025-11-01 08:59:32] [INFO]   QA mean +/- std: 70.84 +/- 19.80
+[2025-11-01 08:59:32] [INFO] 
+======================================================================
+[2025-11-01 08:59:32] [INFO] CONFIGURACION Y ENTRENAMIENTO DEL MODELO
+[2025-11-01 08:59:32] [INFO] ======================================================================
+[2025-11-01 08:59:32] [INFO] Pipeline:
+[2025-11-01 08:59:32] [INFO]   1. SimpleImputer (strategy='median')
+[2025-11-01 08:59:32] [INFO]   2. StandardScaler
+[2025-11-01 08:59:32] [INFO]   3. SVR
+[2025-11-01 08:59:32] [INFO] 
+Hiperparametros a explorar:
+[2025-11-01 08:59:32] [INFO]   svr__C: [1, 10, 100]
+[2025-11-01 08:59:32] [INFO]   svr__epsilon: [0.1, 1]
+[2025-11-01 08:59:32] [INFO]   svr__kernel: ['rbf', 'linear']
+[2025-11-01 08:59:32] [INFO]   svr__shrinking: [True, False]
+[2025-11-01 08:59:32] [INFO]   Total combinaciones: 24
+[2025-11-01 08:59:32] [INFO] 
+Cross-validation: GroupKFold (n_splits=4)
+[2025-11-01 08:59:32] [INFO]   Objetivo: speaker-independent evaluation
+[2025-11-01 08:59:32] [INFO]   Metrica: negative MAE
+[2025-11-01 08:59:32] [INFO] 
+Iniciando GridSearchCV...
+[2025-11-01 08:59:32] [INFO]   (esto puede tomar varios minutos)
+[2025-11-01 09:03:04] [INFO] 
+======================================================================
+[2025-11-01 09:03:04] [INFO] GridSearchCV COMPLETADO
+[2025-11-01 09:03:04] [INFO] ======================================================================
+[2025-11-01 09:03:04] [INFO] Mejores hiperparametros:
+[2025-11-01 09:03:04] [INFO]   svr__C: 100
+[2025-11-01 09:03:04] [INFO]   svr__epsilon: 0.1
+[2025-11-01 09:03:04] [INFO]   svr__kernel: rbf
+[2025-11-01 09:03:04] [INFO]   svr__shrinking: False
+[2025-11-01 09:03:04] [INFO] Mejor MAE (CV): 9.383
+[2025-11-01 09:03:04] [INFO] Modelo guardado: model_best_cv.pkl
+[2025-11-01 09:03:04] [INFO] Resultados CV guardados: cv_results_full.csv
+[2025-11-01 09:03:04] [INFO] 
+======================================================================
+[2025-11-01 09:03:04] [INFO] PREDICCIONES CROSS-VALIDATION (OUT-OF-FOLD)
+[2025-11-01 09:03:04] [INFO] ======================================================================
+[2025-11-01 09:03:04] [INFO]   Fold 1/4: train=289, test=97
+[2025-11-01 09:03:04] [INFO]   Fold 2/4: train=289, test=97
+[2025-11-01 09:03:04] [INFO]   Fold 3/4: train=290, test=96
+[2025-11-01 09:03:04] [INFO]   Fold 4/4: train=290, test=96
+[2025-11-01 09:03:04] [INFO] Predicciones out-of-fold completadas
+[2025-11-01 09:03:04] [INFO] 
+======================================================================
+[2025-11-01 09:03:04] [INFO] EVALUACION: CV_EN
+[2025-11-01 09:03:04] [INFO] ======================================================================
+[2025-11-01 09:03:04] [INFO] Metricas de regresion:
+[2025-11-01 09:03:04] [INFO]   MAE:        9.379
+[2025-11-01 09:03:04] [INFO]   RMSE:       12.071
+[2025-11-01 09:03:04] [INFO]   R2:         0.628
+[2025-11-01 09:03:04] [INFO]   Pearson r:  0.793 (p=0.0000)
+[2025-11-01 09:03:04] [INFO]   Spearman:   0.779 (p=0.0000)
+[2025-11-01 09:03:04] [INFO] 
+Metricas de accuracy por distancia:
+[2025-11-01 09:03:04] [INFO]   Acc@1:  8.03%
+[2025-11-01 09:03:04] [INFO]   Acc@5:  36.01%
+[2025-11-01 09:03:04] [INFO]   Acc@10: 59.84%
+[2025-11-01 09:03:04] [INFO]   Exact:  0.26%
+[2025-11-01 09:03:04] [INFO] 
+Metricas de clasificacion por severidad:
+[2025-11-01 09:03:04] [INFO]   Accuracy: 67.88%
+[2025-11-01 09:03:04] [INFO] 
+  Accuracy por clase:
+[2025-11-01 09:03:04] [INFO]     Very Severe: Precision=100.00%, Recall=6.67%, F1=12.50%
+[2025-11-01 09:03:04] [INFO]     Severe: Precision=45.71%, Recall=40.00%, F1=42.67%
+[2025-11-01 09:03:04] [INFO]     Moderate: Precision=57.14%, Recall=78.87%, F1=66.27%
+[2025-11-01 09:03:04] [INFO]     Mild: Precision=86.36%, Recall=70.37%, F1=77.55%
+[2025-11-01 09:03:04] [INFO] 
+Generando graficos...
+[2025-11-01 09:03:05] [INFO] Archivos guardados: CV_EN_*.csv/png
+[2025-11-01 09:03:05] [INFO] 
+======================================================================
+[2025-11-01 09:03:05] [INFO] CALIBRACION POST-HOC (Isotonic Regression)
+[2025-11-01 09:03:05] [INFO] ======================================================================
+[2025-11-01 09:03:05] [INFO] Entrenando calibrador en predicciones CV...
+[2025-11-01 09:03:05] [INFO] Calibrador guardado: calibrator.pkl
+[2025-11-01 09:03:05] [INFO] 
+======================================================================
+[2025-11-01 09:03:05] [INFO] EVALUACION: CV_EN_CALIBRATED
+[2025-11-01 09:03:05] [INFO] ======================================================================
+[2025-11-01 09:03:05] [INFO] Metricas de regresion:
+[2025-11-01 09:03:05] [INFO]   MAE:        8.609
+[2025-11-01 09:03:05] [INFO]   RMSE:       11.230
+[2025-11-01 09:03:05] [INFO]   R2:         0.678
+[2025-11-01 09:03:05] [INFO]   Pearson r:  0.824 (p=0.0000)
+[2025-11-01 09:03:05] [INFO]   Spearman:   0.794 (p=0.0000)
+[2025-11-01 09:03:05] [INFO] 
+Metricas de accuracy por distancia:
+[2025-11-01 09:03:05] [INFO]   Acc@1:  10.62%
+[2025-11-01 09:03:05] [INFO]   Acc@5:  36.79%
+[2025-11-01 09:03:05] [INFO]   Acc@10: 68.39%
+[2025-11-01 09:03:05] [INFO]   Exact:  0.26%
+[2025-11-01 09:03:05] [INFO] 
+Metricas de clasificacion por severidad:
+[2025-11-01 09:03:05] [INFO]   Accuracy: 70.73%
+[2025-11-01 09:03:05] [INFO] 
+  Accuracy por clase:
+[2025-11-01 09:03:05] [INFO]     Very Severe: Precision=83.33%, Recall=33.33%, F1=47.62%
+[2025-11-01 09:03:05] [INFO]     Severe: Precision=45.95%, Recall=42.50%, F1=44.16%
+[2025-11-01 09:03:05] [INFO]     Moderate: Precision=61.40%, Recall=73.94%, F1=67.09%
+[2025-11-01 09:03:05] [INFO]     Mild: Precision=84.88%, Recall=77.25%, F1=80.89%
+[2025-11-01 09:03:05] [INFO] 
+Generando graficos...
+[2025-11-01 09:03:06] [INFO] Archivos guardados: CV_EN_CALIBRATED_*.csv/png
+[2025-11-01 09:03:06] [INFO] 
+======================================================================
+[2025-11-01 09:03:06] [INFO] ENTRENAMIENTO MODELO FINAL (TODO EN)
+[2025-11-01 09:03:06] [INFO] ======================================================================
+[2025-11-01 09:03:06] [INFO] Reentrenando modelo en TODO el set EN...
+[2025-11-01 09:03:06] [INFO] Modelo final guardado: model_final_all_EN.pkl
+[2025-11-01 09:03:06] [INFO] 
+======================================================================
+[2025-11-01 09:03:06] [INFO] EVALUACION IN-SAMPLE (EN)
+[2025-11-01 09:03:06] [INFO] ======================================================================
+[2025-11-01 09:03:06] [INFO] Predicciones in-sample (diagnostico)...
+[2025-11-01 09:03:06] [INFO] 
+======================================================================
+[2025-11-01 09:03:06] [INFO] EVALUACION: EN_IN_RAW
+[2025-11-01 09:03:06] [INFO] ======================================================================
+[2025-11-01 09:03:06] [INFO] Metricas de regresion:
+[2025-11-01 09:03:06] [INFO]   MAE:        0.856
+[2025-11-01 09:03:06] [INFO]   RMSE:       2.990
+[2025-11-01 09:03:06] [INFO]   R2:         0.977
+[2025-11-01 09:03:06] [INFO]   Pearson r:  0.989 (p=0.0000)
+[2025-11-01 09:03:06] [INFO]   Spearman:   0.982 (p=0.0000)
+[2025-11-01 09:03:06] [INFO] 
+Metricas de accuracy por distancia:
+[2025-11-01 09:03:06] [INFO]   Acc@1:  89.90%
+[2025-11-01 09:03:06] [INFO]   Acc@5:  94.82%
+[2025-11-01 09:03:06] [INFO]   Acc@10: 97.41%
+[2025-11-01 09:03:06] [INFO]   Exact:  9.84%
+[2025-11-01 09:03:06] [INFO] 
+Metricas de clasificacion por severidad:
+[2025-11-01 09:03:06] [INFO]   Accuracy: 96.37%
+[2025-11-01 09:03:06] [INFO] 
+  Accuracy por clase:
+[2025-11-01 09:03:06] [INFO]     Very Severe: Precision=100.00%, Recall=100.00%, F1=100.00%
+[2025-11-01 09:03:06] [INFO]     Severe: Precision=100.00%, Recall=97.50%, F1=98.73%
+[2025-11-01 09:03:06] [INFO]     Moderate: Precision=93.24%, Recall=97.18%, F1=95.17%
+[2025-11-01 09:03:06] [INFO]     Mild: Precision=97.83%, Recall=95.24%, F1=96.51%
+[2025-11-01 09:03:06] [INFO] 
+Generando graficos...
+[2025-11-01 09:03:06] [INFO] Archivos guardados: EN_IN_RAW_*.csv/png
+[2025-11-01 09:03:06] [INFO] 
+======================================================================
+[2025-11-01 09:03:06] [INFO] EVALUACION: EN_IN_CALIBRATED
+[2025-11-01 09:03:06] [INFO] ======================================================================
+[2025-11-01 09:03:06] [INFO] Metricas de regresion:
+[2025-11-01 09:03:06] [INFO]   MAE:        3.806
+[2025-11-01 09:03:06] [INFO]   RMSE:       4.820
+[2025-11-01 09:03:06] [INFO]   R2:         0.941
+[2025-11-01 09:03:06] [INFO]   Pearson r:  0.973 (p=0.0000)
+[2025-11-01 09:03:06] [INFO]   Spearman:   0.979 (p=0.0000)
+[2025-11-01 09:03:06] [INFO] 
+Metricas de accuracy por distancia:
+[2025-11-01 09:03:06] [INFO]   Acc@1:  10.10%
+[2025-11-01 09:03:06] [INFO]   Acc@5:  79.53%
+[2025-11-01 09:03:06] [INFO]   Acc@10: 96.11%
+[2025-11-01 09:03:06] [INFO]   Exact:  0.26%
+[2025-11-01 09:03:06] [INFO] 
+Metricas de clasificacion por severidad:
+[2025-11-01 09:03:06] [INFO]   Accuracy: 91.19%
+[2025-11-01 09:03:06] [INFO] 
+  Accuracy por clase:
+[2025-11-01 09:03:06] [INFO]     Very Severe: Precision=62.50%, Recall=100.00%, F1=76.92%
+[2025-11-01 09:03:06] [INFO]     Severe: Precision=76.92%, Recall=75.00%, F1=75.95%
+[2025-11-01 09:03:06] [INFO]     Moderate: Precision=96.06%, Recall=85.92%, F1=90.71%
+[2025-11-01 09:03:06] [INFO]     Mild: Precision=94.39%, Recall=97.88%, F1=96.10%
+[2025-11-01 09:03:07] [INFO] 
+Generando graficos...
+[2025-11-01 09:03:07] [INFO] Archivos guardados: EN_IN_CALIBRATED_*.csv/png
+[2025-11-01 09:03:07] [INFO] 
+======================================================================
+[2025-11-01 09:03:07] [INFO] EVALUACION INTERNAL VALIDATION (ES)
+[2025-11-01 09:03:07] [INFO] ======================================================================
+[2025-11-01 09:03:07] [INFO] Evaluando en 4 pacientes ES...
+[2025-11-01 09:03:07] [INFO] 
+======================================================================
+[2025-11-01 09:03:07] [INFO] EVALUACION: INT_ES_RAW
+[2025-11-01 09:03:07] [INFO] ======================================================================
+[2025-11-01 09:03:07] [INFO] Metricas de regresion:
+[2025-11-01 09:03:07] [INFO]   MAE:        9.350
+[2025-11-01 09:03:07] [INFO]   RMSE:       9.708
+[2025-11-01 09:03:07] [INFO]   R2:         -0.552
+[2025-11-01 09:03:07] [INFO]   Pearson r:  0.965 (p=0.0350)
+[2025-11-01 09:03:07] [INFO]   Spearman:   1.000 (p=0.0000)
+[2025-11-01 09:03:07] [INFO] 
+Metricas de accuracy por distancia:
+[2025-11-01 09:03:07] [INFO]   Acc@1:  0.00%
+[2025-11-01 09:03:07] [INFO]   Acc@5:  0.00%
+[2025-11-01 09:03:07] [INFO]   Acc@10: 75.00%
+[2025-11-01 09:03:07] [INFO]   Exact:  0.00%
+[2025-11-01 09:03:07] [INFO] 
+Metricas de clasificacion por severidad:
+[2025-11-01 09:03:07] [INFO]   Accuracy: 25.00%
+[2025-11-01 09:03:07] [INFO] 
+  Accuracy por clase:
+[2025-11-01 09:03:07] [INFO]     Very Severe: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:07] [INFO]     Severe: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:07] [INFO]     Moderate: Precision=25.00%, Recall=100.00%, F1=40.00%
+[2025-11-01 09:03:07] [INFO]     Mild: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:07] [INFO] 
+Generando graficos...
+[2025-11-01 09:03:08] [INFO] Archivos guardados: INT_ES_RAW_*.csv/png
+[2025-11-01 09:03:08] [INFO] 
+======================================================================
+[2025-11-01 09:03:08] [INFO] EVALUACION: INT_ES_CALIBRATED
+[2025-11-01 09:03:08] [INFO] ======================================================================
+[2025-11-01 09:03:08] [INFO] Metricas de regresion:
+[2025-11-01 09:03:08] [INFO]   MAE:        8.041
+[2025-11-01 09:03:08] [INFO]   RMSE:       8.569
+[2025-11-01 09:03:08] [INFO]   R2:         -0.210
+[2025-11-01 09:03:08] [INFO]   Pearson r:  0.960 (p=0.0404)
+[2025-11-01 09:03:08] [INFO]   Spearman:   0.949 (p=0.0513)
+[2025-11-01 09:03:08] [INFO] 
+Metricas de accuracy por distancia:
+[2025-11-01 09:03:08] [INFO]   Acc@1:  0.00%
+[2025-11-01 09:03:08] [INFO]   Acc@5:  25.00%
+[2025-11-01 09:03:08] [INFO]   Acc@10: 75.00%
+[2025-11-01 09:03:08] [INFO]   Exact:  0.00%
+[2025-11-01 09:03:08] [INFO] 
+Metricas de clasificacion por severidad:
+[2025-11-01 09:03:08] [INFO]   Accuracy: 25.00%
+[2025-11-01 09:03:08] [INFO] 
+  Accuracy por clase:
+[2025-11-01 09:03:08] [INFO]     Very Severe: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:08] [INFO]     Severe: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:08] [INFO]     Moderate: Precision=25.00%, Recall=100.00%, F1=40.00%
+[2025-11-01 09:03:08] [INFO]     Mild: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:08] [INFO] 
+Generando graficos...
+[2025-11-01 09:03:08] [INFO] Archivos guardados: INT_ES_CALIBRATED_*.csv/png
+[2025-11-01 09:03:08] [INFO] 
+======================================================================
+[2025-11-01 09:03:08] [INFO] EVALUACION EXTERNAL TEST (CA)
+[2025-11-01 09:03:08] [INFO] ======================================================================
+[2025-11-01 09:03:08] [INFO] Evaluando en 9 pacientes CA...
+[2025-11-01 09:03:08] [INFO] 
+======================================================================
+[2025-11-01 09:03:08] [INFO] EVALUACION: EXT_CA_RAW
+[2025-11-01 09:03:08] [INFO] ======================================================================
+[2025-11-01 09:03:08] [INFO] Metricas de regresion:
+[2025-11-01 09:03:08] [INFO]   MAE:        24.622
+[2025-11-01 09:03:08] [INFO]   RMSE:       27.412
+[2025-11-01 09:03:08] [INFO]   R2:         -0.233
+[2025-11-01 09:03:08] [INFO]   Pearson r:  -0.219 (p=0.5718)
+[2025-11-01 09:03:08] [INFO]   Spearman:   -0.151 (p=0.6989)
+[2025-11-01 09:03:08] [INFO] 
+Metricas de accuracy por distancia:
+[2025-11-01 09:03:08] [INFO]   Acc@1:  0.00%
+[2025-11-01 09:03:08] [INFO]   Acc@5:  0.00%
+[2025-11-01 09:03:08] [INFO]   Acc@10: 22.22%
+[2025-11-01 09:03:08] [INFO]   Exact:  0.00%
+[2025-11-01 09:03:08] [INFO] 
+Metricas de clasificacion por severidad:
+[2025-11-01 09:03:08] [INFO]   Accuracy: 0.00%
+[2025-11-01 09:03:08] [INFO] 
+  Accuracy por clase:
+[2025-11-01 09:03:08] [INFO]     Very Severe: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:08] [INFO]     Severe: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:08] [INFO]     Moderate: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:08] [INFO]     Mild: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:08] [INFO] 
+Generando graficos...
+[2025-11-01 09:03:09] [INFO] Archivos guardados: EXT_CA_RAW_*.csv/png
+[2025-11-01 09:03:09] [INFO] 
+======================================================================
+[2025-11-01 09:03:09] [INFO] EVALUACION: EXT_CA_CALIBRATED
+[2025-11-01 09:03:09] [INFO] ======================================================================
+[2025-11-01 09:03:09] [INFO] Metricas de regresion:
+[2025-11-01 09:03:09] [INFO]   MAE:        24.182
+[2025-11-01 09:03:09] [INFO]   RMSE:       27.912
+[2025-11-01 09:03:09] [INFO]   R2:         -0.279
+[2025-11-01 09:03:09] [INFO]   Pearson r:  -0.108 (p=0.7827)
+[2025-11-01 09:03:09] [INFO]   Spearman:   0.137 (p=0.7254)
+[2025-11-01 09:03:09] [INFO] 
+Metricas de accuracy por distancia:
+[2025-11-01 09:03:09] [INFO]   Acc@1:  0.00%
+[2025-11-01 09:03:09] [INFO]   Acc@5:  11.11%
+[2025-11-01 09:03:09] [INFO]   Acc@10: 33.33%
+[2025-11-01 09:03:09] [INFO]   Exact:  0.00%
+[2025-11-01 09:03:09] [INFO] 
+Metricas de clasificacion por severidad:
+[2025-11-01 09:03:09] [INFO]   Accuracy: 0.00%
+[2025-11-01 09:03:09] [INFO] 
+  Accuracy por clase:
+[2025-11-01 09:03:09] [INFO]     Very Severe: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:09] [INFO]     Severe: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:09] [INFO]     Moderate: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:09] [INFO]     Mild: Precision=0.00%, Recall=0.00%, F1=0.00%
+[2025-11-01 09:03:09] [INFO] 
+Generando graficos...
+[2025-11-01 09:03:09] [INFO] Archivos guardados: EXT_CA_CALIBRATED_*.csv/png
+[2025-11-01 09:03:09] [INFO] 
+======================================================================
+[2025-11-01 09:03:09] [INFO] RESUMEN FINAL
+[2025-11-01 09:03:09] [INFO] ======================================================================
+[2025-11-01 09:03:09] [INFO] 
+Directorio de resultados: /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_svr/SVR_DEN_DYS_20251101_085917
+[2025-11-01 09:03:09] [INFO] 
+Pacientes procesados:
+[2025-11-01 09:03:09] [INFO]   EN (train):               386
+[2025-11-01 09:03:09] [INFO]   ES (internal validation): 4
+[2025-11-01 09:03:09] [INFO]   CA (external test):       9
+[2025-11-01 09:03:09] [INFO]   TOTAL:                    399
+[2025-11-01 09:03:09] [INFO] 
+Features utilizadas:
+[2025-11-01 09:03:09] [INFO]   DEN: 28
+[2025-11-01 09:03:09] [INFO]   DYS: 22
+[2025-11-01 09:03:09] [INFO]   LEX: 66
+[2025-11-01 09:03:09] [INFO]   TOTAL: 116
+[2025-11-01 09:03:09] [INFO] 
+Metricas CV (calibrado):
+[2025-11-01 09:03:09] [INFO]   MAE:                8.609
+[2025-11-01 09:03:09] [INFO]   R2:                 0.678
+[2025-11-01 09:03:09] [INFO]   Spearman:           0.794
+[2025-11-01 09:03:09] [INFO]   Acc@5:              36.8%
+[2025-11-01 09:03:09] [INFO]   Severity Accuracy:  70.7%
+[2025-11-01 09:03:09] [INFO] 
+======================================================================
+[2025-11-01 09:03:09] [INFO] PROCESO COMPLETADO EXITOSAMENTE
+[2025-11-01 09:03:09] [INFO] ======================================================================
+[2025-11-01 09:03:09] [INFO] Timestamp: 2025-11-01 09:03:09
+[2025-11-01 09:03:09] [INFO] Resultados en: /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_svr/SVR_DEN_DYS_20251101_085917
+[2025-11-01 09:03:09] [INFO] ======================================================================
+

@@ -2,7 +2,7 @@
 # train_svr_den_dys.py
 # -*- coding: utf-8 -*-
 """
-SVR - Prediccion WAB-AQ con features DEN+DYS
+SVR - Prediccion WAB-AQ con features DEN+DYS+LEX
 Lee datos desde /lustre/ (archivos con EN, ES, CA)
 Incluye severity classification y metricas completas
 """
@@ -53,8 +53,8 @@ CSV_CAT_DYS = os.path.join(DATA_LUSTRE, "df_catalan_pos_metrics_with_dys.csv")
 CSV_DYS_PAT = os.path.join(DATA_LUSTRE, "dys_pauses_by_patient.csv")
 
 # Resultados en /lhome/
-PROJECT_BASE = "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments"
-RESULTS_BASE = os.path.join(PROJECT_BASE, "resultados_svr")
+PROJECT_BASE = "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025"
+RESULTS_BASE = os.path.join(PROJECT_BASE, "outputs/experiments/resultados_svr")
 
 os.makedirs(RESULTS_BASE, exist_ok=True)
 
@@ -491,7 +491,7 @@ def main():
     
     log = set_logger(run_dir)
     log.info("="*70)
-    log.info("INICIO: SVR con datos desde /lustre/")
+    log.info("INICIO: Prediccion WAB-AQ con features DEN+DYS+LEX")
     log.info("="*70)
     log.info("Directorio de resultados: {}".format(run_dir))
     log.info("Timestamp: {}".format(ts))
@@ -503,7 +503,7 @@ def main():
     
     # ==================== CARGAR DATOS ====================
     log.info("\n" + "="*70)
-    log.info("CARGANDO DATOS DESDE /lustre/")
+    log.info("CARGANDO DATOS")
     log.info("="*70)
     
     # Verificar archivos
@@ -513,11 +513,11 @@ def main():
             sys.exit(1)
     
     # Cargar CSVs
-    log.info("Cargando AphasiaBank (EN+ES)...")
+    log.info("Cargando AphasiaBank (EN+ES): {}".format(CSV_APH_DYS))
     df_aph = pd.read_csv(CSV_APH_DYS)
     log.info("  Chunks: {}".format(len(df_aph)))
     
-    log.info("Cargando Catalan (CA)...")
+    log.info("Cargando Catalan (CA): {}".format(CSV_CAT_DYS))
     df_cat = pd.read_csv(CSV_CAT_DYS)
     log.info("  Chunks: {}".format(len(df_cat)))
     
@@ -533,7 +533,10 @@ def main():
     df['lang'] = df.apply(detect_language, axis=1)
     
     log.info("\nDistribucion de chunks por idioma:")
-    log.info("{}".format(df['lang'].value_counts()))
+    for lang in ['en', 'es', 'ca']:
+        n = len(df[df['lang'] == lang])
+        log.info("  {}: {} chunks, {} pacientes".format(
+            lang.upper(), n, df[df['lang'] == lang]['CIP'].nunique()))
     
     # ==================== AGREGACION POR PACIENTE ====================
     log.info("\n" + "="*70)
@@ -552,10 +555,45 @@ def main():
     df_pat["lang"] = df.groupby("CIP")["lang"].first().values
     
     log.info("Total pacientes: {}".format(len(df_pat)))
-    log.info("\nPacientes por idioma:")
-    for lang in ['en', 'es', 'ca']:
-        n = len(df_pat[df_pat['lang'] == lang])
-        log.info("  {}: {}".format(lang.upper(), n))
+    
+    # ==================== CARGAR LEX FEATURES ====================
+    log.info("\n" + "="*70)
+    log.info("CARGANDO LEX FEATURES")
+    log.info("="*70)
+    
+    lex_file = os.path.join(PROJECT_BASE, "data/lex_features/lex_features_en.csv")
+    
+    if os.path.exists(lex_file):
+        log.info("Cargando: {}".format(lex_file))
+        lex_df = pd.read_csv(lex_file)
+        log.info("  LEX features: {} pacientes".format(len(lex_df)))
+        
+        # Renombrar patient_id a CIP para el merge
+        if 'patient_id' in lex_df.columns:
+            lex_df = lex_df.rename(columns={'patient_id': 'CIP'})
+        
+        # Merge con DEN+DYS (solo mantener columnas LEX)
+        lex_cols_to_merge = ['CIP'] + [c for c in lex_df.columns if c.startswith('lex_')]
+        lex_df_clean = lex_df[lex_cols_to_merge]
+        
+        df_pat = df_pat.merge(
+            lex_df_clean,
+            on='CIP',
+            how='left'
+        )
+        
+        n_lex_feats = len([c for c in df_pat.columns if c.startswith('lex_')])
+        log.info("  LEX features anadidas: {}".format(n_lex_feats))
+        log.info("  Pacientes con LEX: {}".format(df_pat['lex_ttr'].notna().sum()))
+        log.info("  Pacientes sin LEX (ES/CA): {}".format(df_pat['lex_ttr'].isna().sum()))
+        
+    else:
+        log.warning("LEX features no encontradas: {}".format(lex_file))
+        log.warning("Continuando solo con DEN+DYS (28 features)")
+        log.warning("\nPara anadir LEX features:")
+        log.warning("  1. cd /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/03_features")
+        log.warning("  2. python3 download_lex_databases.py")
+        log.warning("  3. python3 build_lex.py")
     
     # ==================== PREPARAR FEATURES ====================
     log.info("\n" + "="*70)
@@ -564,13 +602,15 @@ def main():
     
     den_cols = [c for c in df_pat.columns if c.startswith('den_')]
     dys_cols = [c for c in df_pat.columns if c.startswith('dys_')]
-    feat_cols = den_cols + dys_cols
+    lex_cols = [c for c in df_pat.columns if c.startswith('lex_')]
+    feat_cols = den_cols + dys_cols + lex_cols
     
     # Filtrar solo numericas
     feat_cols = df_pat[feat_cols].select_dtypes(include=[np.number]).columns.tolist()
     
     log.info("Features DEN: {}".format(len([c for c in feat_cols if c.startswith('den_')])))
     log.info("Features DYS: {}".format(len([c for c in feat_cols if c.startswith('dys_')])))
+    log.info("Features LEX: {}".format(len([c for c in feat_cols if c.startswith('lex_')])))
     log.info("TOTAL: {}".format(len(feat_cols)))
     
     if len(feat_cols) == 0:
@@ -591,6 +631,11 @@ def main():
         f.write("\nDYS features ({}):\n".format(
             len([c for c in feat_cols if c.startswith('dys_')])))
         for c in sorted([c for c in feat_cols if c.startswith('dys_')]):
+            f.write("  - {}\n".format(c))
+        
+        f.write("\nLEX features ({}):\n".format(
+            len([c for c in feat_cols if c.startswith('lex_')])))
+        for c in sorted([c for c in feat_cols if c.startswith('lex_')]):
             f.write("  - {}\n".format(c))
     
     # ==================== SPLITS POR IDIOMA ====================
@@ -828,6 +873,7 @@ def main():
     log.info("\nFeatures utilizadas:")
     log.info("  DEN: {}".format(len([c for c in feat_cols if c.startswith('den_')])))
     log.info("  DYS: {}".format(len([c for c in feat_cols if c.startswith('dys_')])))
+    log.info("  LEX: {}".format(len([c for c in feat_cols if c.startswith('lex_')])))
     log.info("  TOTAL: {}".format(len(feat_cols)))
     
     try:
