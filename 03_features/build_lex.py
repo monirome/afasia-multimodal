@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 # build_lex.py
 """
-Construye LEX features leyendo directamente de archivos .CHA
+Construye LEX features (PAPER MODE: solo 6 features)
+Para inglés (EN), español (ES) y catalán (CA)
 """
 
 import os
 import re
 import glob
-import argparse
 import sys
 import numpy as np
 import pandas as pd
 import nltk
 from nltk.stem import WordNetLemmatizer
+
+# ======================== CONFIGURACION ========================
+LEX_MODE = "paper"  # FIJO: Solo mean (6 features como Fraser et al.)
 
 # Paths
 PROJECT_BASE = "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025"
@@ -31,22 +34,23 @@ for corpus in ['wordnet', 'omw-1.4', 'averaged_perceptron_tagger', 'universal_ta
         nltk.download(corpus, quiet=True)
 
 print("="*70)
-print("BUILD: LEX FEATURES (desde archivos .CHA)")
+print("BUILD: LEX FEATURES - PAPER MODE (6 features)")
+print("Languages: EN, ES, CA")
 print("="*70)
 
 # ======================== CARGAR WORD DATABASE ========================
-print("\n[1/4] Cargando word database...")
+print("\n[1/5] Loading word database...")
 
 db_file = os.path.join(WORD_DB_DIR, "word_database_master.csv")
 if not os.path.exists(db_file):
-    print(f"\nERROR: No existe {db_file}")
-    print("\nEjecuta primero:")
+    print(f"\nERROR: File not found {db_file}")
+    print("\nRun first:")
     print("  cd /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/03_features")
     print("  python3 download_lex_databases.py")
     sys.exit(1)
 
 word_db = pd.read_csv(db_file)
-print(f"      Palabras cargadas: {len(word_db)}")
+print(f"      Words loaded: {len(word_db)}")
 
 # Diccionarios para lookup
 freq_dict = dict(zip(word_db['word'], word_db['frequency']))
@@ -91,7 +95,7 @@ def parse_cha_file(filepath):
         }
     
     except Exception as e:
-        print(f"  Error leyendo {filepath}: {e}")
+        print(f"  Error reading {filepath}: {e}")
         return None
 
 # ======================== UTILIDADES ========================
@@ -116,49 +120,28 @@ def get_word_score(word, score_dict):
     
     return np.nan
 
-def stats13_array(arr, prefix):
-    s = pd.Series(arr).dropna()
-    if len(s) == 0:
-        keys = ["q1","q2","q3","iqr12","iqr23","iqr13","p01","p99",
-                "range01_99","mean","std","skew","kurt"]
-        return {f"{prefix}_{k}": np.nan for k in keys}
-    
-    q1 = s.quantile(0.25)
-    q2 = s.quantile(0.50)
-    q3 = s.quantile(0.75)
-    p01 = s.quantile(0.01)
-    p99 = s.quantile(0.99)
-    
-    return {
-        f"{prefix}_q1": float(q1),
-        f"{prefix}_q2": float(q2),
-        f"{prefix}_q3": float(q3),
-        f"{prefix}_iqr12": float(q2 - q1),
-        f"{prefix}_iqr23": float(q3 - q2),
-        f"{prefix}_iqr13": float(q3 - q1),
-        f"{prefix}_p01": float(p01),
-        f"{prefix}_p99": float(p99),
-        f"{prefix}_range01_99": float(p99 - p01),
-        f"{prefix}_mean": float(s.mean()),
-        f"{prefix}_std": float(s.std(ddof=0)),
-        f"{prefix}_skew": float(s.skew()),
-        f"{prefix}_kurt": float(s.kurt())
-    }
-
 # ======================== EXTRACCION POR PACIENTE ========================
 def extract_LEX_for_patient(cha_data):
-    """Extrae 66 LEX features desde datos .CHA"""
+    """
+    Extrae 6 LEX features (PAPER MODE):
+    - Feature 29: TTR
+    - Feature 30: freq_mean
+    - Feature 31: img_mean
+    - Feature 32: aoa_mean
+    - Feature 33: fam_mean
+    - Feature 34: phones_mean
+    """
     
     utterances = cha_data['utterances']
     
     if not utterances:
         return {
             'lex_ttr': np.nan,
-            **stats13_array(np.array([]), 'lex_freq'),
-            **stats13_array(np.array([]), 'lex_img'),
-            **stats13_array(np.array([]), 'lex_aoa'),
-            **stats13_array(np.array([]), 'lex_fam'),
-            **stats13_array(np.array([]), 'lex_phones')
+            'lex_freq_mean': np.nan,
+            'lex_img_mean': np.nan,
+            'lex_aoa_mean': np.nan,
+            'lex_fam_mean': np.nan,
+            'lex_phones_mean': np.nan
         }
     
     # Juntar todo el texto
@@ -170,17 +153,17 @@ def extract_LEX_for_patient(cha_data):
     if len(words) == 0:
         return {
             'lex_ttr': np.nan,
-            **stats13_array(np.array([]), 'lex_freq'),
-            **stats13_array(np.array([]), 'lex_img'),
-            **stats13_array(np.array([]), 'lex_aoa'),
-            **stats13_array(np.array([]), 'lex_fam'),
-            **stats13_array(np.array([]), 'lex_phones')
+            'lex_freq_mean': np.nan,
+            'lex_img_mean': np.nan,
+            'lex_aoa_mean': np.nan,
+            'lex_fam_mean': np.nan,
+            'lex_phones_mean': np.nan
         }
     
     # POS tagging
     pos_tags = nltk.pos_tag(words, tagset='universal')
     
-    # Feature 29: Type-Token Ratio
+    # Feature 29: Type-Token Ratio (Fergadiotis & Wright 2011)
     open_class_lemmas = [
         lemmatizer.lemmatize(w.lower()) 
         for w, pos in pos_tags 
@@ -192,7 +175,7 @@ def extract_LEX_for_patient(cha_data):
     else:
         ttr = np.nan
     
-    # Features 30-34: Word scores
+    # Features 30-34: Word scores (mean only, like Fraser et al. 2013)
     freq_scores = []
     img_scores = []
     aoa_scores = []
@@ -220,96 +203,129 @@ def extract_LEX_for_patient(cha_data):
         if pd.notna(phones):
             phone_counts.append(phones)
     
-    out = {'lex_ttr': float(ttr)}
-    out.update(stats13_array(np.array(freq_scores), 'lex_freq'))
-    out.update(stats13_array(np.array(img_scores), 'lex_img'))
-    out.update(stats13_array(np.array(aoa_scores), 'lex_aoa'))
-    out.update(stats13_array(np.array(fam_scores), 'lex_fam'))
-    out.update(stats13_array(np.array(phone_counts), 'lex_phones'))
-    
-    return out
+    return {
+        'lex_ttr': float(ttr) if not np.isnan(ttr) else np.nan,
+        'lex_freq_mean': float(np.mean(freq_scores)) if len(freq_scores) > 0 else np.nan,
+        'lex_img_mean': float(np.mean(img_scores)) if len(img_scores) > 0 else np.nan,
+        'lex_aoa_mean': float(np.mean(aoa_scores)) if len(aoa_scores) > 0 else np.nan,
+        'lex_fam_mean': float(np.mean(fam_scores)) if len(fam_scores) > 0 else np.nan,
+        'lex_phones_mean': float(np.mean(phone_counts)) if len(phone_counts) > 0 else np.nan
+    }
 
 # ======================== MAIN ========================
-print("\n[2/4] Buscando archivos .CHA...")
+print("\n[2/5] Finding .CHA files...")
 
 CHA_DIR = "/lustre/ific.uv.es/ml/upc150/upc1503/data/transcripciones"
 cha_files = glob.glob(os.path.join(CHA_DIR, "**/*.cha"), recursive=True)
 
-print(f"      Archivos .CHA encontrados: {len(cha_files)}")
+print(f"      .CHA files found: {len(cha_files)}")
 
 if len(cha_files) == 0:
-    print(f"\nERROR: No se encontraron archivos .CHA en {CHA_DIR}")
+    print(f"\nERROR: No .CHA files found in {CHA_DIR}")
     sys.exit(1)
 
-print("\n[3/4] Parseando archivos .CHA...")
+print("\n[3/5] Parsing .CHA files...")
 
 cha_data_dict = {}
 for i, cha_path in enumerate(cha_files, 1):
     if i % 100 == 0:
-        print(f"        {i}/{len(cha_files)} archivos...")
+        print(f"        {i}/{len(cha_files)} files...")
     
     parsed = parse_cha_file(cha_path)
     if parsed and len(parsed['utterances']) > 0:
         cha_data_dict[parsed['patient_id']] = parsed
 
-print(f"      Pacientes válidos: {len(cha_data_dict)}")
+print(f"      Valid patients: {len(cha_data_dict)}")
 
-# Filtrar solo inglés
-cha_data_en = {k: v for k, v in cha_data_dict.items() if v['language'] == 'en'}
-print(f"      Pacientes EN: {len(cha_data_en)}")
+# Separar por idioma
+cha_data_by_lang = {
+    'en': {k: v for k, v in cha_data_dict.items() if v['language'] == 'en'},
+    'es': {k: v for k, v in cha_data_dict.items() if v['language'] == 'es'},
+    'ca': {k: v for k, v in cha_data_dict.items() if v['language'] == 'ca'}
+}
 
-print("\n[4/4] Extrayendo LEX features...")
+print(f"      EN patients: {len(cha_data_by_lang['en'])}")
+print(f"      ES patients: {len(cha_data_by_lang['es'])}")
+print(f"      CA patients: {len(cha_data_by_lang['ca'])}")
 
-results = []
-patients = sorted(cha_data_en.keys())
-
-for i, pid in enumerate(patients, 1):
-    if i % 50 == 0:
-        print(f"        Progreso: {i}/{len(patients)} pacientes")
-    
-    cha_data = cha_data_en[pid]
-    feats = extract_LEX_for_patient(cha_data)
-    
-    row = {
-        'patient_id': pid,
-        'language': cha_data['language']
-    }
-    row.update(feats)
-    results.append(row)
-
-df_lex = pd.DataFrame(results)
+# ======================== EXTRACCION POR IDIOMA ========================
+print("\n[4/5] Extracting LEX features by language...")
 
 # Cargar metadata (QA) si existe
 metadata_file = os.path.join(PROJECT_BASE, "data/patient_metadata_WAB.csv")
+df_meta = None
 if os.path.exists(metadata_file):
     df_meta = pd.read_csv(metadata_file)
-    df_lex = df_lex.merge(
-        df_meta[['patient_id', 'QA']],
-        on='patient_id',
-        how='left'
-    )
+    print(f"      Metadata loaded: {len(df_meta)} patients")
 
-print(f"\n      Pacientes procesados: {len(df_lex)}")
+for lang in ['en', 'es', 'ca']:
+    print(f"\n      Processing {lang.upper()}...")
+    
+    cha_data_lang = cha_data_by_lang[lang]
+    
+    if len(cha_data_lang) == 0:
+        print(f"        No patients for {lang.upper()}, skipping...")
+        continue
+    
+    results = []
+    patients = sorted(cha_data_lang.keys())
+    
+    for i, pid in enumerate(patients, 1):
+        if i % 50 == 0:
+            print(f"          Progress: {i}/{len(patients)} patients")
+        
+        cha_data = cha_data_lang[pid]
+        feats = extract_LEX_for_patient(cha_data)
+        
+        row = {
+            'patient_id': pid,
+            'language': lang
+        }
+        row.update(feats)
+        results.append(row)
+    
+    df_lex = pd.DataFrame(results)
+    
+    # Merge con metadata si existe
+    if df_meta is not None:
+        df_lex = df_lex.merge(
+            df_meta[['patient_id', 'QA']],
+            on='patient_id',
+            how='left'
+        )
+    
+    # Coverage
+    print(f"          Patients processed: {len(df_lex)}")
+    print(f"          Coverage:")
+    print(f"            TTR:    {df_lex['lex_ttr'].notna().sum()} ({100*df_lex['lex_ttr'].notna().mean():.1f}%)")
+    print(f"            Freq:   {df_lex['lex_freq_mean'].notna().sum()} ({100*df_lex['lex_freq_mean'].notna().mean():.1f}%)")
+    print(f"            Img:    {df_lex['lex_img_mean'].notna().sum()} ({100*df_lex['lex_img_mean'].notna().mean():.1f}%)")
+    print(f"            AoA:    {df_lex['lex_aoa_mean'].notna().sum()} ({100*df_lex['lex_aoa_mean'].notna().mean():.1f}%)")
+    print(f"            Fam:    {df_lex['lex_fam_mean'].notna().sum()} ({100*df_lex['lex_fam_mean'].notna().mean():.1f}%)")
+    print(f"            Phones: {df_lex['lex_phones_mean'].notna().sum()} ({100*df_lex['lex_phones_mean'].notna().mean():.1f}%)")
+    
+    # Guardar
+    out_file = os.path.join(OUT_DIR, f"lex_features_{lang}.csv")
+    df_lex.to_csv(out_file, index=False)
+    print(f"          Saved: {out_file}")
 
-# Coverage
-print("\n      Coverage por feature group:")
-print(f"        TTR:    {df_lex['lex_ttr'].notna().sum()} ({100*df_lex['lex_ttr'].notna().mean():.1f}%)")
-print(f"        Freq:   {df_lex['lex_freq_mean'].notna().sum()} ({100*df_lex['lex_freq_mean'].notna().mean():.1f}%)")
-print(f"        Img:    {df_lex['lex_img_mean'].notna().sum()} ({100*df_lex['lex_img_mean'].notna().mean():.1f}%)")
-print(f"        AoA:    {df_lex['lex_aoa_mean'].notna().sum()} ({100*df_lex['lex_aoa_mean'].notna().mean():.1f}%)")
-print(f"        Fam:    {df_lex['lex_fam_mean'].notna().sum()} ({100*df_lex['lex_fam_mean'].notna().mean():.1f}%)")
-print(f"        Phones: {df_lex['lex_phones_mean'].notna().sum()} ({100*df_lex['lex_phones_mean'].notna().mean():.1f}%)")
-
-# Guardar
-out_file = os.path.join(OUT_DIR, "lex_features_en.csv")
-df_lex.to_csv(out_file, index=False)
-
-print(f"\n      Output: {out_file}")
-print("\n" + "="*70)
-print("COMPLETADO")
+# ======================== RESUMEN FINAL ========================
+print("\n[5/5] Summary")
 print("="*70)
-print(f"Features extraídas: {len([c for c in df_lex.columns if c.startswith('lex_')])}")
-print(f"  - Feature 29 (TTR): 1 feature")
-print(f"  - Features 30-34 (5 grupos × 13 stats): 65 features")
-print(f"  - TOTAL: 66 LEX features")
+print("COMPLETED")
+print("="*70)
+print("Mode: PAPER (replicates Fraser et al. 2013)")
+print("Features extracted: 6 LEX features")
+print("")
+print("  Feature 29: lex_ttr          (Type-Token Ratio)")
+print("  Feature 30: lex_freq_mean    (Word frequency)")
+print("  Feature 31: lex_img_mean     (Word imageability)")
+print("  Feature 32: lex_aoa_mean     (Age of acquisition)")
+print("  Feature 33: lex_fam_mean     (Word familiarity)")
+print("  Feature 34: lex_phones_mean  (Phones per word)")
+print("")
+print("Output files:")
+print(f"  {os.path.join(OUT_DIR, 'lex_features_en.csv')}")
+print(f"  {os.path.join(OUT_DIR, 'lex_features_es.csv')}")
+print(f"  {os.path.join(OUT_DIR, 'lex_features_ca.csv')}")
 print("="*70)

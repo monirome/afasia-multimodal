@@ -5,6 +5,7 @@
 SVR - Prediccion WAB-AQ con features DEN+DYS+LEX
 Lee datos desde /lustre/ (archivos con EN, ES, CA)
 Incluye severity classification, metricas completas y análisis de interpretabilidad (SHAP + Permutation)
+LEX features: 6 features (paper mode) para EN, ES, CA
 """
 
 import os
@@ -793,41 +794,65 @@ def main():
     
     log.info("Total pacientes: {}".format(len(df_pat)))
     
-    # ==================== CARGAR LEX FEATURES ====================
+    # ==================== CARGAR LEX FEATURES (EN, ES, CA) ====================
     log.info("\n" + "="*70)
-    log.info("CARGANDO LEX FEATURES")
+    log.info("CARGANDO LEX FEATURES (EN, ES, CA)")
     log.info("="*70)
     
-    lex_file = os.path.join(PROJECT_BASE, "data/lex_features/lex_features_en.csv")
+    # Cargar LEX features para cada idioma
+    lex_dir = os.path.join(PROJECT_BASE, "data/lex_features")
+    lex_files = {
+        'en': os.path.join(lex_dir, "lex_features_en.csv"),
+        'es': os.path.join(lex_dir, "lex_features_es.csv"),
+        'ca': os.path.join(lex_dir, "lex_features_ca.csv")
+    }
     
-    if os.path.exists(lex_file):
-        log.info("Cargando: {}".format(lex_file))
-        lex_df = pd.read_csv(lex_file)
-        log.info("  LEX features: {} pacientes".format(len(lex_df)))
+    lex_dfs = {}
+    for lang, lex_file in lex_files.items():
+        if os.path.exists(lex_file):
+            log.info("Cargando {}: {}".format(lang.upper(), lex_file))
+            lex_df = pd.read_csv(lex_file)
+            
+            # Renombrar patient_id a CIP si es necesario
+            if 'patient_id' in lex_df.columns:
+                lex_df = lex_df.rename(columns={'patient_id': 'CIP'})
+            
+            # Solo mantener CIP y columnas LEX
+            lex_cols = ['CIP'] + [c for c in lex_df.columns if c.startswith('lex_')]
+            lex_dfs[lang] = lex_df[lex_cols]
+            
+            log.info("  Pacientes: {}".format(len(lex_df)))
+        else:
+            log.warning("  No encontrado: {}".format(lex_file))
+    
+    # Combinar todos los LEX features
+    if lex_dfs:
+        lex_combined = pd.concat(lex_dfs.values(), ignore_index=True)
+        log.info("\nTotal LEX features combinados: {} pacientes".format(len(lex_combined)))
         
-        # Renombrar patient_id a CIP para el merge
-        if 'patient_id' in lex_df.columns:
-            lex_df = lex_df.rename(columns={'patient_id': 'CIP'})
-        
-        # Merge con DEN+DYS (solo mantener columnas LEX)
-        lex_cols_to_merge = ['CIP'] + [c for c in lex_df.columns if c.startswith('lex_')]
-        lex_df_clean = lex_df[lex_cols_to_merge]
-        
+        # Merge con DEN+DYS
         df_pat = df_pat.merge(
-            lex_df_clean,
+            lex_combined,
             on='CIP',
             how='left'
         )
         
         n_lex_feats = len([c for c in df_pat.columns if c.startswith('lex_')])
-        log.info("  LEX features anadidas: {}".format(n_lex_feats))
-        log.info("  Pacientes con LEX: {}".format(df_pat['lex_ttr'].notna().sum()))
-        log.info("  Pacientes sin LEX (ES/CA): {}".format(df_pat['lex_ttr'].isna().sum()))
+        log.info("LEX features anadidas: {}".format(n_lex_feats))
         
+        # Coverage por idioma
+        for lang in ['en', 'es', 'ca']:
+            mask_lang = df_pat['lang'] == lang
+            n_total = mask_lang.sum()
+            n_with_lex = (mask_lang & df_pat['lex_ttr'].notna()).sum()
+            log.info("  {}: {}/{} pacientes con LEX ({:.1f}%)".format(
+                lang.upper(), n_with_lex, n_total, 
+                100*n_with_lex/n_total if n_total > 0 else 0))
+    
     else:
-        log.warning("LEX features no encontradas: {}".format(lex_file))
-        log.warning("Continuando solo con DEN+DYS (28 features)")
-        log.warning("\nPara anadir LEX features:")
+        log.warning("No se encontraron LEX features")
+        log.warning("Continuando solo con DEN+DYS")
+        log.warning("\nPara generar LEX features:")
         log.warning("  1. cd /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/03_features")
         log.warning("  2. python3 download_lex_databases.py")
         log.warning("  3. python3 build_lex.py")
