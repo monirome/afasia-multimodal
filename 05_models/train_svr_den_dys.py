@@ -6,6 +6,7 @@ SVR - Prediccion WAB-AQ con features DEN+DYS+LEX
 Lee datos desde /lustre/ (archivos con EN, ES, CA)
 Incluye severity classification, metricas completas y análisis de interpretabilidad (SHAP + Permutation)
 LEX features: 6 features (paper mode) para EN, ES, CA
+SOLO USA LAS 34 FEATURES DEL PAPER ORIGINAL
 """
 
 import os
@@ -177,6 +178,82 @@ def detect_language(row):
         return "es"
     else:
         return "ca"
+
+# ======================== SELECCION DE FEATURES DEL PAPER ========================
+def select_paper_features(df_pat, log):
+    """
+    Selecciona SOLO las 34 features del paper original (Fraser et al. 2013):
+    - 18 DEN features (o 17 si falta phones_per_min)
+    - 10 DYS features
+    - 6 LEX features
+    
+    Referencia: Table 1 del paper
+    """
+    
+    # DEN (18 features) - Information Density
+    den_paper = [
+        'den_words_per_min',      # 1. Words/min
+        'den_phones_per_min',     # 2. Phones/min (puede no existir)
+        'den_W',                  # 3. W
+        'den_OCW',                # 4. OCW
+        'den_words_utt_mean',     # 5. Words/utt (SOLO mean)
+        'den_phones_utt_mean',    # 6. Phones/utt (SOLO mean)
+        'den_nouns',              # 7. Nouns
+        'den_verbs',              # 8. Verbs
+        'den_nouns_per_verb',     # 9. Nouns/verb
+        'den_noun_ratio',         # 10. Noun ratio
+        'den_light_verbs',        # 11. Light verbs
+        'den_determiners',        # 12. Determiners
+        'den_demonstratives',     # 13. Demonstratives
+        'den_prepositions',       # 14. Prepositions
+        'den_adjectives',         # 15. Adjectives
+        'den_adverbs',            # 16. Adverbs
+        'den_pronoun_ratio',      # 17. Pronoun ratio
+        'den_function_words'      # 18. Function words
+    ]
+    
+    # DYS (10 features) - Dysfluency
+    dys_paper = [
+        'dys_fillers_per_min',       # 19. Fillers/min
+        'dys_fillers_per_word',      # 20. Fillers/word
+        'dys_fillers_per_phone',     # 21. Fillers/phone
+        'dys_pauses_per_min',        # 22. Pauses/min
+        'dys_long_pauses_per_min',   # 23. Long pauses/min
+        'dys_short_pauses_per_min',  # 24. Short pauses/min
+        'dys_pauses_per_word',       # 25. Pauses/word
+        'dys_long_pauses_per_word',  # 26. Long pauses/word
+        'dys_short_pauses_per_word', # 27. Short pauses/word
+        'dys_pause_sec_mean'         # 28. Seconds/pause (SOLO mean)
+    ]
+    
+    # LEX (6 features) - Lexical Diversity and Complexity
+    lex_paper = [
+        'lex_ttr',           # 29. Type-token ratio
+        'lex_freq_mean',     # 30. Freq/word
+        'lex_img_mean',      # 31. Img/word
+        'lex_aoa_mean',      # 32. AoA/word
+        'lex_fam_mean',      # 33. Fam/word
+        'lex_phones_mean'    # 34. Phones/word
+    ]
+    
+    paper_features = den_paper + dys_paper + lex_paper
+    
+    # Filtrar solo las que existen en el dataframe
+    available_features = [f for f in paper_features if f in df_pat.columns]
+    missing_features = [f for f in paper_features if f not in df_pat.columns]
+    
+    if missing_features:
+        log.warning("\nFeatures del paper NO disponibles:")
+        for f in missing_features:
+            log.warning("  - {}".format(f))
+    
+    log.info("\nFeatures seleccionadas del paper (Fraser et al. 2013):")
+    log.info("  DEN: {} features".format(len([f for f in available_features if f.startswith('den_')])))
+    log.info("  DYS: {} features".format(len([f for f in available_features if f.startswith('dys_')])))
+    log.info("  LEX: {} features".format(len([f for f in available_features if f.startswith('lex_')])))
+    log.info("  TOTAL: {} features (de 34 del paper)".format(len(available_features)))
+    
+    return available_features
 
 # ======================== FEATURES POR PACIENTE ========================
 def build_DEN_for_patient(grp: pd.DataFrame) -> pd.Series:
@@ -729,7 +806,7 @@ def main():
     
     log = set_logger(run_dir)
     log.info("="*70)
-    log.info("INICIO: Prediccion WAB-AQ con features DEN+DYS+LEX")
+    log.info("INICIO: Prediccion WAB-AQ con 34 features del PAPER")
     log.info("="*70)
     log.info("Directorio de resultados: {}".format(run_dir))
     log.info("Timestamp: {}".format(ts))
@@ -857,23 +934,22 @@ def main():
         log.warning("  2. python3 download_lex_databases.py")
         log.warning("  3. python3 build_lex.py")
     
-    # ==================== PREPARAR FEATURES ====================
+    # ==================== PREPARAR FEATURES (SOLO LAS 34 DEL PAPER) ====================
     log.info("\n" + "="*70)
-    log.info("PREPARANDO FEATURES")
+    log.info("PREPARANDO FEATURES (SOLO LAS 34 DEL PAPER)")
     log.info("="*70)
     
-    den_cols = [c for c in df_pat.columns if c.startswith('den_')]
-    dys_cols = [c for c in df_pat.columns if c.startswith('dys_')]
-    lex_cols = [c for c in df_pat.columns if c.startswith('lex_')]
-    feat_cols = den_cols + dys_cols + lex_cols
+    # SELECCIONAR SOLO LAS 34 FEATURES DEL PAPER
+    feat_cols = select_paper_features(df_pat, log)
     
-    # Filtrar solo numericas
+    # Verificar que son numericas
     feat_cols = df_pat[feat_cols].select_dtypes(include=[np.number]).columns.tolist()
     
-    log.info("Features DEN: {}".format(len([c for c in feat_cols if c.startswith('den_')])))
-    log.info("Features DYS: {}".format(len([c for c in feat_cols if c.startswith('dys_')])))
-    log.info("Features LEX: {}".format(len([c for c in feat_cols if c.startswith('lex_')])))
-    log.info("TOTAL: {}".format(len(feat_cols)))
+    log.info("\nFeatures finales:")
+    log.info("  DEN: {}".format(len([c for c in feat_cols if c.startswith('den_')])))
+    log.info("  DYS: {}".format(len([c for c in feat_cols if c.startswith('dys_')])))
+    log.info("  LEX: {}".format(len([c for c in feat_cols if c.startswith('lex_')])))
+    log.info("  TOTAL: {}".format(len(feat_cols)))
     
     if len(feat_cols) == 0:
         log.error("No hay features numericas")
@@ -881,7 +957,7 @@ def main():
     
     # Guardar lista
     with open(run_dir / "features_used.txt", "w", encoding="utf-8") as f:
-        f.write("FEATURES UTILIZADAS\n")
+        f.write("FEATURES UTILIZADAS (PAPER - Fraser et al. 2013)\n")
         f.write("{}\n".format("="*70))
         f.write("Total: {}\n\n".format(len(feat_cols)))
         
@@ -1164,11 +1240,11 @@ def main():
     log.info("  CA (external test):       {}".format(n_ca))
     log.info("  TOTAL:                    {}".format(n_en + n_es + n_ca))
     
-    log.info("\nFeatures utilizadas:")
+    log.info("\nFeatures utilizadas (PAPER):")
     log.info("  DEN: {}".format(len([c for c in feat_cols if c.startswith('den_')])))
     log.info("  DYS: {}".format(len([c for c in feat_cols if c.startswith('dys_')])))
     log.info("  LEX: {}".format(len([c for c in feat_cols if c.startswith('lex_')])))
-    log.info("  TOTAL: {}".format(len(feat_cols)))
+    log.info("  TOTAL: {} (de 34 del paper)".format(len(feat_cols)))
     
     try:
         cv_metrics = pd.read_csv(run_dir / "CV_EN_CALIBRATED_metrics.csv").iloc[0]
