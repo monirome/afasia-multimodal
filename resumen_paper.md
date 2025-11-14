@@ -1,4 +1,4 @@
-# Metodología del paper (Le et al., 2018) – Resumen en Markdown
+# Metodología del paper (Le et al., 2018) 
 
 ## Objetivo
 
@@ -27,7 +27,7 @@ Predecir WAB-AQ (Western Aphasia Battery Aphasia Quotient) usando features ling�
 
 - **Input:** audio + transcripciones CHAT (`.cha`)
 - **Output:** marcas temporales a nivel de palabra (word-level timestamps)
-- No utilizan WhisperX (no existía en 2018).
+- No utilizan WhisperX 
 
 ---
 
@@ -51,12 +51,6 @@ Se aplican 13 estadísticas a 17 métricas base del tipo `{X}`:
 ```text
 {X} → min, p10, q1, median, q3, p90, max, mean, std, skew, kurt, iqr, mad
 ```
-
-Ejemplos:
-
-- `{Words/utt}` → 13 estadísticas sobre longitud de enunciados.
-- `{Seconds/pause}` → 13 estadísticas sobre duración de pausas.
-- `{Freq/word}` → 13 estadísticas sobre frecuencia de palabras.
 
 ---
 
@@ -517,7 +511,7 @@ Comparado con el paper:
 
 # Comparación lado a lado
 
-| Aspecto              | Paper (Le et al., 2018)                  | Tu implementación                               |
+| Aspecto              | Paper (Le et al., 2018)                  | Nuestra implementación                               |
 |----------------------|------------------------------------------|------------------------------------------------|
 | Dataset total        | ~600 speakers (solo EN)                  | 506 speakers (EN/ES/CA)                         |
 | PWA                  | ~530                                     | 421                                            |
@@ -566,9 +560,9 @@ Comparado con el paper:
 - Dataset algo más pequeño y más heterogéneo (multilingüe).
 - Ligera reducción del espacio de hiperparámetros respecto al paper.
 
-## Próximos pasos recomendados
+## Próximos pasos 
 
-### Prioridad alta (impacto grande, esfuerzo moderado)
+### Prioridad alta 
 
 1. Implementar POS-LM (26 features):
    - Entrenar modelos de POS bigrama/trigrama por idioma.
@@ -589,7 +583,7 @@ Comparado con el paper:
    - Argumentar que la reducción de dimensionalidad es clave cuando el nº de muestras es limitado.
    - Reportar el conjunto de features seleccionadas y su interpretación clínica.
 
-### Prioridad media (esfuerzo mayor, buen impacto)
+### Prioridad media 
 
 1. Completar LEX (para inglés inicialmente):
    - Integrar bases de datos:
@@ -606,7 +600,7 @@ Comparado con el paper:
    - Añadir valores de `C` más pequeños y más grandes.
    - Ajustar mejor `epsilon` según la escala real de WAB-AQ.
 
-### Prioridad baja (esfuerzo muy alto, impacto más limitado)
+### Prioridad baja 
 
 1. Implementar PVE y DTW:
    - Requiere:
@@ -614,26 +608,3 @@ Comparado con el paper:
      - Emparejamiento de repeticiones de palabras/frases.
      - Aplicar DTW para medir distancias acústicas.
    - Aporta fidelidad al paper, pero es costoso en tiempo de desarrollo y cómputo.
-
----
-
-## Recomendación práctica 
-
-Para tener una metodología sólida, manejable y razonablemente alineada con Le et al. (2018), una buena combinación sería:
-
-- Trabajar con:
-  - DEN + DYS completos.
-  - POS-LM implementado.
-  - LEX al menos con TTR y alguna métrica adicional en inglés.
-- Aplicar SFS u otra técnica de selección de features (p. ej. SFS + validación cruzada).
-- Reportar resultados finales con:
-  - Un subconjunto de ~30–40 features seleccionadas.
-  - Comparación directa con:
-    - Todas las features.
-    - Subconjunto manual de 29 features.
-
-Con esto puedes justificar que tu modelo es:
-
-- Metodológicamente riguroso.
-- Comparativamente alineado con el paper.
-- Adaptado a un contexto multilingüe y a un dataset ligeramente distinto.
