@@ -10,6 +10,7 @@ VERSIÓN COMPLETA FINAL:
 ✅ Severity classification completa
 ✅ Isotonic calibration
 ✅ In-sample diagnostics
+✅ USA TODAS LAS FEATURES DISPONIBLES (65)
 """
 
 import os
@@ -46,8 +47,6 @@ from scipy.stats import spearmanr, pearsonr
 PROJECT_BASE = pathlib.Path(__file__).resolve().parent.parent  # Auto-detecta la raíz
 DATASET_CSV = PROJECT_BASE / "data" / "dataset_FINAL_COMPLETO.csv"
 RESULTS_BASE = PROJECT_BASE / "outputs" / "experiments" / "resultados_svr"
-DATASET_CSV = os.path.join(PROJECT_BASE, "data/dataset_FINAL_COMPLETO.csv")
-RESULTS_BASE = os.path.join(PROJECT_BASE, "outputs/experiments/resultados_svr")
 
 os.makedirs(RESULTS_BASE, exist_ok=True)
 
@@ -465,7 +464,7 @@ def main():
     log.info("CARGANDO DATOS")
     log.info("="*70)
     
-    if not os.path.exists(DATASET_CSV):
+    if not DATASET_CSV.exists():
         log.error("No existe: {}".format(DATASET_CSV))
         sys.exit(1)
     
@@ -524,56 +523,47 @@ def main():
         count = sev_dist.get(sev, 0)
         log.info("  {}: {}".format(sev, count))
     
-    # ==================== FEATURES ====================
+    # ==================== FEATURES (TODAS LAS DISPONIBLES) ====================
     log.info("\n" + "="*70)
-    log.info("FEATURES (34 del paper)")
+    log.info("FEATURES (todas disponibles)")
     log.info("="*70)
     
-    den_paper = [
-        'den_words_per_min','den_phones_per_min','den_W','den_OCW',
-        'den_words_utt_mean','den_phones_utt_mean',
-        'den_nouns','den_verbs','den_nouns_per_verb','den_noun_ratio',
-        'den_light_verbs','den_determiners','den_demonstratives',
-        'den_prepositions','den_adjectives','den_adverbs',
-        'den_pronoun_ratio','den_function_words'
-    ]
-    dys_paper = [
-        'dys_fillers_per_min','dys_fillers_per_word','dys_fillers_per_phone',
-        'dys_pauses_per_min','dys_long_pauses_per_min','dys_short_pauses_per_min',
-        'dys_pauses_per_word','dys_long_pauses_per_word','dys_short_pauses_per_word',
-        'dys_pause_sec_mean'
-    ]
-    lex_paper = [
-        'lex_ttr','lex_freq_mean','lex_img_mean','lex_aoa_mean','lex_fam_mean','lex_phones_mean'
-    ]
+    # Usar TODAS las features DEN, DYS, LEX disponibles
+    feat_cols = sorted([c for c in df.columns if c.startswith(('den_', 'dys_', 'lex_'))])
     
-    paper_features = den_paper + dys_paper + lex_paper
-    feat_cols = [f for f in paper_features if f in df.columns]
-    missing = [f for f in paper_features if f not in df.columns]
+    if len(feat_cols) == 0:
+        log.error("No se encontraron features DEN/DYS/LEX")
+        sys.exit(1)
     
-    if missing:
-        log.warning("\nFeatures faltantes del paper:")
-        for f in missing:
-            log.warning("  - {}".format(f))
+    den_cols = [f for f in feat_cols if f.startswith('den_')]
+    dys_cols = [f for f in feat_cols if f.startswith('dys_')]
+    lex_cols = [f for f in feat_cols if f.startswith('lex_')]
     
     log.info("\nFeatures seleccionadas:")
-    log.info("  DEN: {}".format(len([f for f in feat_cols if f.startswith('den_')])))
-    log.info("  DYS: {}".format(len([f for f in feat_cols if f.startswith('dys_')])))
-    log.info("  LEX: {}".format(len([f for f in feat_cols if f.startswith('lex_')])))
-    log.info("  TOTAL: {} (de 34 del paper)".format(len(feat_cols)))
+    log.info("  DEN: {}".format(len(den_cols)))
+    log.info("  DYS: {}".format(len(dys_cols)))
+    log.info("  LEX: {}".format(len(lex_cols)))
+    log.info("  TOTAL: {}".format(len(feat_cols)))
     
-    # Guardar lista
+    # Guardar lista detallada
     with open(run_dir / "features_used.txt", "w", encoding="utf-8") as f:
-        f.write("FEATURES (Paper - Fraser et al. 2013 / Le et al. 2018)\n")
+        f.write("FEATURES COMPLETAS\n")
         f.write("="*70 + "\n")
         f.write("Total: {}\n\n".format(len(feat_cols)))
         
-        for prefix in ['DEN', 'DYS', 'LEX']:
-            feats = sorted([c for c in feat_cols if c.startswith(prefix.lower() + '_')])
-            f.write("{} features ({}):\n".format(prefix, len(feats)))
-            for c in feats:
-                f.write("  - {}\n".format(c))
-            f.write("\n")
+        f.write("DEN features ({}):\n".format(len(den_cols)))
+        for c in den_cols:
+            f.write("  - {}\n".format(c))
+        f.write("\n")
+        
+        f.write("DYS features ({}):\n".format(len(dys_cols)))
+        for c in dys_cols:
+            f.write("  - {}\n".format(c))
+        f.write("\n")
+        
+        f.write("LEX features ({}):\n".format(len(lex_cols)))
+        for c in lex_cols:
+            f.write("  - {}\n".format(c))
     
     # ==================== PREPARAR DATOS ====================
     log.info("\n" + "="*70)
@@ -632,7 +622,7 @@ def main():
         total_comb *= len(values)
     log.info("  Total combinaciones: {}".format(total_comb))
     
-    # ==================== CROSS-VALIDATION (Control en cada fold train) ====================
+    # ==================== CROSS-VALIDATION ====================
     log.info("\n" + "="*70)
     log.info("CROSS-VALIDATION (GroupKFold, Control siempre en train)")
     log.info("="*70)
@@ -668,7 +658,7 @@ def main():
         
         # Grid search en este fold
         gs_fold = GridSearchCV(
-            pipe, param_grid, cv=3, # EL PAPER USA 5-FOLD 
+            pipe, param_grid, cv=5,  # Paper usa 5-fold
             scoring="neg_mean_absolute_error", 
             n_jobs=1, verbose=0
         )
@@ -735,7 +725,7 @@ def main():
     
     log.info("\nEntrenando Grid Search final...")
     gs_final = GridSearchCV(
-        pipe, param_grid, cv=3, #EL PAPER USA 5-FOLD
+        pipe, param_grid, cv=5,  # Paper usa 5-fold
         scoring="neg_mean_absolute_error",
         n_jobs=1, verbose=2
     )
@@ -761,7 +751,7 @@ def main():
     log.info("ANALISIS DE INTERPRETABILIDAD")
     log.info("="*70)
     
-    # 1. Permutation Importance (siempre)
+    # 1. Permutation Importance
     perm_importance = compute_feature_importance_permutation(
         best_model, X_pwa, y_pwa, feat_cols, run_dir, log, n_repeats=10
     )
@@ -816,10 +806,10 @@ def main():
     log.info("  TOTAL:                    {}".format(len(df_pwa) + (len(df_control) if X_control is not None else 0)))
     
     log.info("\nFeatures utilizadas:")
-    log.info("  DEN: {}".format(len([f for f in feat_cols if f.startswith('den_')])))
-    log.info("  DYS: {}".format(len([f for f in feat_cols if f.startswith('dys_')])))
-    log.info("  LEX: {}".format(len([f for f in feat_cols if f.startswith('lex_')])))
-    log.info("  TOTAL: {} (de 34 del paper)".format(len(feat_cols)))
+    log.info("  DEN: {}".format(len(den_cols)))
+    log.info("  DYS: {}".format(len(dys_cols)))
+    log.info("  LEX: {}".format(len(lex_cols)))
+    log.info("  TOTAL: {}".format(len(feat_cols)))
     
     try:
         cv_metrics = pd.read_csv(run_dir / "CV_PWA_CALIBRATED_metrics.csv").iloc[0]
