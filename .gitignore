@@ -3,6 +3,11 @@ data/
 logs/
 archive_legacy/
 notebooks/
+jobs/
+utils/
+aphasia_output/
+outputs/
+
 
 # Modelos pesados
 *.pt
