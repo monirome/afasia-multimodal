@@ -563,11 +563,9 @@ Comparado con el paper:
 ## Próximos pasos 
 
 ### Prioridad alta 
-
-1. Implementar POS-LM (26 features):
-   - Entrenar modelos de POS bigrama/trigrama por idioma.
-   - Extraer cross-entropy sobre las secuencias de POS generadas por nuestras transcripciones.
-   - Añadir estas 26 features al conjunto.
+1. Refinar el espacio de hiperparámetros de SVR:
+   - Añadir valores de `C` más pequeños y más grandes.
+   - Ajustar mejor `epsilon` según la escala real de WAB-AQ.
 
 2. Añadir feature selection tipo SFS:
    - Replicar la lógica del paper:
@@ -579,9 +577,10 @@ Comparado con el paper:
      - 65 features completas.
      - Subconjunto seleccionado por SFS.
 
-3. Basar el paper/tesis en un modelo con selección de features:
-   - Argumentar que la reducción de dimensionalidad es clave cuando el nº de muestras es limitado.
-   - Reportar el conjunto de features seleccionadas y su interpretación clínica.
+3. Implementar POS-LM (26 features):
+   - Entrenar modelos de POS bigrama/trigrama por idioma.
+   - Extraer cross-entropy sobre las secuencias de POS generadas por nuestras transcripciones.
+   - Añadir estas 26 features al conjunto.
 
 ### Prioridad media 
 
@@ -596,9 +595,6 @@ Comparado con el paper:
      - Se omiten esas features.
      - Se usan solo algunas aproximaciones (frecuencia, longitud de palabra, etc.).
 
-2. Refinar el espacio de hiperparámetros de SVR:
-   - Añadir valores de `C` más pequeños y más grandes.
-   - Ajustar mejor `epsilon` según la escala real de WAB-AQ.
 
 ### Prioridad baja 
 
@@ -616,3 +612,5 @@ Comparado con el paper:
 - Leer paper whisper hallucination para la parte de alineamiento
 - Utilizar metodos de feature engineering 
 - Seleccionar varaibles que no sean dependientes del idioma 
+- La parte de busqueda de hiperparámetros con gridsearch mirar con optuna 
+- 
