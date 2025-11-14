@@ -161,7 +161,7 @@ Nota: el paper no reporta MAE explícitamente; se infiere a partir de RMSE y cor
 
 ---
 
-# NUESTRO ESTUDIO – Resumen en Markdown
+# NUESTRO ESTUDIO 
 
 ## Objetivo
 
