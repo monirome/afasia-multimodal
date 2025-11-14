@@ -1,6 +1,8 @@
 # Datos y resultados (excluir completamente)
 data/
 logs/
+archive_legacy/
+notebooks/
 
 # Modelos pesados
 *.pt

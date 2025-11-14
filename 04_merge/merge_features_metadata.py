@@ -1,158 +1,106 @@
 #!/usr/bin/env python3
 # merge_features_metadata.py
-# -*- coding: utf-8 -*-
-"""
-Combina features DEN+DYS con metadata (QA + idioma)
-"""
+"""Merge DEN+DYS features con metadata WAB"""
+
 import os
 import sys
 import pandas as pd
 
-# ======================== CONFIGURACION ========================
-FEATURES_CSV = "../data/features_den_dys_COMPLETO.csv"
-METADATA_CSV = "../data/patient_metadata_WAB.csv"
-OUTPUT_CSV = "../data/dataset_FINAL_EN_ES.csv"
+# Paths
+FEATURES_CSV = "data/features_den_dys_COMPLETO.csv"
+METADATA_CSV = "data/patient_metadata_WAB.csv"
+OUTPUT_CSV = "data/dataset_FINAL.csv"
 
 def main():
     print("="*70)
-    print("MERGE: Features DEN+DYS + Metadata")
+    print("MERGE: Features DEN+DYS + Metadata WAB")
     print("="*70)
     
-    # ==================== VERIFICAR ARCHIVOS ====================
-    print("\nVerificando archivos de entrada...")
-    
+    # Verificar archivos
     if not os.path.exists(FEATURES_CSV):
-        print("\nERROR: No existe: {}".format(FEATURES_CSV))
-        print("Ejecuta primero: 03_features/build_den_dys.py")
+        print(f"\nERROR: No existe {FEATURES_CSV}")
+        print("Ejecuta primero: python3 03_features/build_den_dys.py")
         sys.exit(1)
     
     if not os.path.exists(METADATA_CSV):
-        print("\nERROR: No existe: {}".format(METADATA_CSV))
-        print("Ejecuta primero: 01_metadata/extract_metadata_from_csv.py")
+        print(f"\nERROR: No existe {METADATA_CSV}")
+        print("Ejecuta primero: python3 01_metadata/extract_wab_metadata_FINAL.py")
         sys.exit(1)
     
-    print("Archivos de entrada encontrados")
+    # Cargar
+    print(f"\nCargando features: {FEATURES_CSV}")
+    df_feat = pd.read_csv(FEATURES_CSV)
+    print(f"  Features: {len(df_feat)} pacientes")
     
-    # ==================== CARGAR DATOS ====================
-    print("\nCargando features desde: {}".format(FEATURES_CSV))
-    df_features = pd.read_csv(FEATURES_CSV)
-    print("  Features: {} pacientes".format(len(df_features)))
+    print(f"\nCargando metadata: {METADATA_CSV}")
+    df_meta = pd.read_csv(METADATA_CSV)
+    print(f"  Metadata: {len(df_meta)} pacientes")
     
-    print("\nCargando metadata desde: {}".format(METADATA_CSV))
-    df_metadata = pd.read_csv(METADATA_CSV)
-    print("  Metadata: {} pacientes".format(len(df_metadata)))
+    # Limpiar conflictos (metadata tiene precedencia)
+    if 'group' in df_feat.columns:
+        df_feat = df_feat.drop(columns=['group'])
+        print("  - Eliminada columna 'group' de features (se usa de metadata)")
     
-    # ==================== VERIFICAR COLUMNAS ====================
-    print("\nVerificando columnas requeridas...")
+    if 'language' in df_feat.columns:
+        df_feat = df_feat.drop(columns=['language'])
+        print("  - Eliminada columna 'language' de features (se usa de metadata)")
     
-    required_features = ['patient_id']
-    required_metadata = ['patient_id', 'QA', 'language']
+    # Merge
+    meta_cols = ['patient_id', 'group', 'QA', 'language', 'sex', 'age', 'aphasia_type']
+    meta_cols = [c for c in meta_cols if c in df_meta.columns]
     
-    missing_feat = [c for c in required_features if c not in df_features.columns]
-    missing_meta = [c for c in required_metadata if c not in df_metadata.columns]
+    print(f"\nColumnas de metadata a usar: {len(meta_cols)}")
+    for col in meta_cols:
+        print(f"  - {col}")
     
-    if missing_feat:
-        print("\nERROR: Faltan columnas en features: {}".format(missing_feat))
-        sys.exit(1)
+    df = pd.merge(df_feat, df_meta[meta_cols], on='patient_id', how='inner')
+    print(f"\nMerge: {len(df)} pacientes (inner join)")
     
-    if missing_meta:
-        print("\nERROR: Faltan columnas en metadata: {}".format(missing_meta))
-        sys.exit(1)
+    # Filtrar pacientes sin QA
+    n_before = len(df)
+    df = df.dropna(subset=['QA'])
+    n_after = len(df)
+    print(f"Con QA válido: {n_after} ({n_before - n_after} eliminados)")
     
-    print("Columnas requeridas presentes")
+    # Estadísticas
+    print("\n" + "="*70)
+    print("ESTADÍSTICAS")
+    print("="*70)
     
-    # ==================== LIMPIAR CONFLICTOS ====================
-    print("\nLimpiando columnas conflictivas...")
-    
-    if 'language' in df_features.columns:
-        print("  Eliminando 'language' de features (se usara la de metadata)")
-        df_features = df_features.drop(columns=['language'])
-    
-    conflict_cols = ['QA', 'sex', 'age', 'aphasia_type']
-    existing_conflicts = [c for c in conflict_cols if c in df_features.columns]
-    if existing_conflicts:
-        print("  Eliminando columnas conflictivas: {}".format(existing_conflicts))
-        df_features = df_features.drop(columns=existing_conflicts)
-    
-    # ==================== MERGE ====================
-    print("\nHaciendo merge por 'patient_id'...")
-    
-    df_final = pd.merge(
-        df_features,
-        df_metadata[['patient_id', 'QA', 'sex', 'age', 'aphasia_type', 'language']],
-        on='patient_id',
-        how='inner'
-    )
-    
-    print("Despues del merge: {} pacientes".format(len(df_final)))
-    
-    # Verificar resultado
-    if 'language' not in df_final.columns:
-        print("\nERROR: No se encontro columna 'language' despues del merge")
-        sys.exit(1)
-    
-    if len(df_final) == 0:
-        print("\nERROR: El merge resulto en 0 pacientes")
-        print("Verifica que los patient_id coincidan entre features y metadata")
-        sys.exit(1)
-    
-    # ==================== LIMPIAR NaN ====================
-    print("\nLimpiando valores NaN en features criticas...")
-    
-    initial_len = len(df_final)
-    critical_features = ['den_light_verbs', 'dys_pause_sec_mean']
-    
-    # Verificar que existen estas features
-    missing_critical = [f for f in critical_features if f not in df_final.columns]
-    if missing_critical:
-        print("\n  Advertencia: No se encontraron features criticas: {}".format(missing_critical))
-        critical_features = [f for f in critical_features if f in df_final.columns]
-    
-    if critical_features:
-        df_final = df_final.dropna(subset=critical_features)
+    if 'group' in df.columns:
+        print("\nDistribución por grupo:")
+        print(df['group'].value_counts(dropna=False))
         
-        if len(df_final) < initial_len:
-            print("  Eliminados {} pacientes con NaN".format(initial_len - len(df_final)))
+        print("\nEstadísticas por grupo:")
+        for grp in ['control', 'pwa']:
+            dg = df[(df['group'] == grp) & (df['QA'].notna())]
+            if len(dg) > 0:
+                print(f"\n  {grp.upper()}:")
+                print(f"    N:     {len(dg)}")
+                print(f"    QA:    {dg['QA'].mean():.1f} ± {dg['QA'].std():.1f}")
+                print(f"    Range: [{dg['QA'].min():.1f}, {dg['QA'].max():.1f}]")
     
-    # ==================== REPORTAR DISTRIBUCION ====================
-    print("\n" + "="*70)
-    print("DISTRIBUCION FINAL POR IDIOMA")
-    print("="*70)
-    print(df_final['language'].value_counts())
-    
-    print("\n" + "="*70)
-    print("ESTADISTICAS POR IDIOMA")
-    print("="*70)
-    for lang in df_final['language'].unique():
-        df_lang = df_final[df_final['language'] == lang]
-        print("\n{}:".format(lang.upper()))
-        print("  N: {}".format(len(df_lang)))
-        print("  QA: {:.1f} +/- {:.1f}".format(df_lang['QA'].mean(), df_lang['QA'].std()))
-        print("  Range: [{:.1f}, {:.1f}]".format(df_lang['QA'].min(), df_lang['QA'].max()))
-    
-    # ==================== GUARDAR ====================
-    print("\n" + "="*70)
-    print("GUARDANDO RESULTADO")
-    print("="*70)
-    
-    # Crear directorio de salida si no existe
-    output_dir = os.path.dirname(OUTPUT_CSV)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        print("Creado directorio: {}".format(output_dir))
-    
-    df_final.to_csv(OUTPUT_CSV, index=False)
-    
-    print("\nDataset final guardado: {}".format(OUTPUT_CSV))
-    print("  Total pacientes: {}".format(len(df_final)))
+    if 'language' in df.columns:
+        print("\nDistribución por idioma:")
+        print(df['language'].value_counts(dropna=False))
     
     # Contar features
-    den_cols = [c for c in df_final.columns if c.startswith('den_')]
-    dys_cols = [c for c in df_final.columns if c.startswith('dys_')]
-    print("  Features DEN: {}".format(len(den_cols)))
-    print("  Features DYS: {}".format(len(dys_cols)))
-    print("  Features TOTAL: {}".format(len(den_cols) + len(dys_cols)))
+    den_cols = [c for c in df.columns if c.startswith('den_')]
+    dys_cols = [c for c in df.columns if c.startswith('dys_')]
     
+    print(f"\nFeatures incluidas:")
+    print(f"  DEN: {len(den_cols)}")
+    print(f"  DYS: {len(dys_cols)}")
+    print(f"  Total: {len(den_cols) + len(dys_cols)}")
+    
+    # Guardar
+    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+    df.to_csv(OUTPUT_CSV, index=False)
+    
+    print(f"\n{'='*70}")
+    print(f"✓ Guardado: {OUTPUT_CSV}")
+    print(f"  {len(df)} pacientes")
+    print(f"  {len(df.columns)} columnas totales")
     print("="*70)
 
 if __name__ == "__main__":
