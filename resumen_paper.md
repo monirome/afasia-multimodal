@@ -107,11 +107,6 @@ TEST SET:
   - PWA: 25% (withhold por CV)
 ```
 
-Citas del paper:
-
-> “The remaining data and all Control speakers are used for training”  
-> “We withhold 25% of speakers from each sub-dataset in the Aphasia set”
-
 ### Cross-validation
 
 - **Método:** 4-fold Stratified GroupKFold
@@ -172,7 +167,7 @@ Nota: el paper no reporta MAE explícitamente; se infiere a partir de RMSE y cor
 
 ---
 
-# Tu metodología – Resumen en Markdown
+# NUESTRO ESTUDIO – Resumen en Markdown
 
 ## Objetivo
 
@@ -180,7 +175,7 @@ Mismo objetivo que el paper: predecir WAB-AQ a partir de features cuantitativas 
 
 ---
 
-## 1. Datos (tu implementación)
+## 1. Datos (NUESTRO)
 
 **Dataset:** AphasiaBank (multilingüe: inglés, español, catalán)  
 **Total de participantes:** 506
@@ -208,7 +203,7 @@ Diferencias frente al paper:
 
 ---
 
-## 2. Transcripciones (tu implementación)
+## 2. Transcripciones 
 
 **Método:** forced alignment con WhisperX.
 
@@ -229,7 +224,7 @@ Diferencias frente al paper:
 
 ---
 
-## 3. Features (tu implementación)
+## 3. Features 
 
 Has implementado 65 features en total, centradas en DEN, DYS y una parte mínima de LEX.
 
@@ -300,15 +295,15 @@ Quedan pendientes (no implementadas todavía):
 
 Diferencias frente al paper:
 
-- DEN y DYS replicados por completo.
+- DEN y DYS replicados por completo (exactamente igual que en el paper)
 - LEX solo incluye TTR.
 - POS-LM, PVE y DTW no implementados (por complejidad y/o dependencia de recursos externos).
 
 ---
 
-## 4. Feature selection y experimentos (tu implementación)
+## 4. Feature selection y experimentos 
 
-Lo que has hecho hasta ahora:
+Lo que he hecho hasta ahora:
 
 - No has aplicado feature selection automática (no hay SFS implementado en tu pipeline actual).
 - Has probado dos configuraciones de features:
@@ -360,7 +355,7 @@ Diferencia clave frente al paper:
 
 ---
 
-## 5. Modelo (tu implementación)
+## 5. Modelo 
 
 - **Algoritmo:** Support Vector Regression (SVR).
 - **Kernel:** RBF, con comparación puntual con kernel lineal.
@@ -395,7 +390,7 @@ Diferencias frente al paper:
 
 ---
 
-## 6. Metodología de evaluación (tu implementación)
+## 6. Metodología de evaluación 
 
 ### Split de datos
 
@@ -440,11 +435,11 @@ Diferencias frente al paper:
 
 ---
 
-## 7. Post-procesamiento (tu implementación)
+## 7. Post-procesamiento 
 
 ### Calibración
 
-Has aplicado calibración posterior sobre las predicciones de WAB-AQ:
+He aplicado calibración posterior sobre las predicciones de WAB-AQ:
 
 - Método: Isotonic Regression.
 - Entrenamiento: sobre predicciones obtenidas vía CV.
@@ -457,7 +452,7 @@ Efecto:
 
 ---
 
-## 8. Métricas de evaluación (tu implementación)
+## 8. Métricas de evaluación 
 
 ### Regresión
 
@@ -494,7 +489,7 @@ Métricas calculadas:
 
 ---
 
-## 9. Resultados (tu implementación)
+## 9. Resultados 
 
 ### Resumen de resultados por experimento
 
@@ -508,7 +503,7 @@ Comparado con el paper:
 - El paper reporta MAE aproximado 8–10, RMSE ~12–14 y Pearson r entre 0.75 y 0.85.
 - Tus resultados actuales están claramente por debajo de esos valores, aunque la correlación es razonable.
 
-### Importancia de variables (top 5, según tu análisis)
+### Importancia de variables (top 5)
 
 | Ranking | Feature              | Interpretación                          |
 |--------:|----------------------|-----------------------------------------|
@@ -547,7 +542,7 @@ Comparado con el paper:
 
 # Conclusiones y próximos pasos
 
-## Fortalezas de tu implementación
+## Fortalezas de nuestra implementación
 
 - Features DEN y DYS replicadas al 100 % respecto al paper.
 - Metodología de split muy cercana al diseño original (Control siempre en train; test solo con PWA).
@@ -622,7 +617,7 @@ Comparado con el paper:
 
 ---
 
-## Recomendación práctica para tu tesis/paper
+## Recomendación práctica 
 
 Para tener una metodología sólida, manejable y razonablemente alineada con Le et al. (2018), una buena combinación sería:
 
