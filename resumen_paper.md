@@ -608,3 +608,11 @@ Comparado con el paper:
      - Emparejamiento de repeticiones de palabras/frases.
      - Aplicar DTW para medir distancias acústicas.
    - Aporta fidelidad al paper, pero es costoso en tiempo de desarrollo y cómputo.
+
+2. Dataset catalan:
+   - Tengo que darcargarme el dataset de nuevo audios y trasncripciones. Preprocesarlas y añadirlo correctamente al flujo.
+
+## Ideas
+- Leer paper whisper hallucination para la parte de alineamiento
+- Utilizar metodos de feature engineering 
+- Seleccionar varaibles que no sean dependientes del idioma 
