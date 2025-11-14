@@ -299,7 +299,7 @@ Diferencias frente al paper:
 
 Lo que he hecho hasta ahora:
 
-- No has aplicado feature selection automática (no hay SFS implementado en tu pipeline actual).
+- No has aplicado feature selection automática (no hay SFS implementado en la pipeline actual).
 - Has probado dos configuraciones de features:
 
 ### Experimento 1: 29 features “simples”
@@ -345,7 +345,7 @@ Comentario: al añadir más features sin selección previa se observa sobreajust
 Diferencia clave frente al paper:
 
 - El paper sí usa SFS para seleccionar ~42 features óptimas.
-- Tu pipeline actual usa todas las features disponibles sin selección automática.
+- La pipeline actual usa todas las features disponibles sin selección automática.
 
 ---
 
@@ -425,7 +425,7 @@ Diferencias frente al paper:
 
 - Mismo número de folds (4).
 - Misma lógica de grupos por paciente.
-- No se ha estratificado por sub-dataset (en tu caso, tampoco tienes sub-datasets definidos de forma equivalente).
+- No se ha estratificado por sub-dataset.
 
 ---
 
@@ -495,7 +495,7 @@ Métricas calculadas:
 Comparado con el paper:
 
 - El paper reporta MAE aproximado 8–10, RMSE ~12–14 y Pearson r entre 0.75 y 0.85.
-- Tus resultados actuales están claramente por debajo de esos valores, aunque la correlación es razonable.
+- Nuestros resultados actuales están claramente por debajo de esos valores, aunque la correlación es razonable.
 
 ### Importancia de variables (top 5)
 
@@ -566,7 +566,7 @@ Comparado con el paper:
 
 1. Implementar POS-LM (26 features):
    - Entrenar modelos de POS bigrama/trigrama por idioma.
-   - Extraer cross-entropy sobre las secuencias de POS generadas por tus transcripciones.
+   - Extraer cross-entropy sobre las secuencias de POS generadas por nuestras transcripciones.
    - Añadir estas 26 features al conjunto.
 
 2. Añadir feature selection tipo SFS:
