@@ -1,5 +1,0 @@
-fold,n_train_pwa,n_train_control,n_test,mae,best_params
-1,315,70,106,15.53881537642435,"{'svr__C': 100, 'svr__epsilon': 0.1, 'svr__kernel': 'rbf', 'svr__shrinking': True}"
-2,316,70,105,16.673833090304345,"{'svr__C': 10, 'svr__epsilon': 1, 'svr__kernel': 'rbf', 'svr__shrinking': True}"
-3,316,70,105,14.952788155587966,"{'svr__C': 10, 'svr__epsilon': 1, 'svr__kernel': 'rbf', 'svr__shrinking': True}"
-4,316,70,105,12.55966035077314,"{'svr__C': 100, 'svr__epsilon': 0.1, 'svr__kernel': 'rbf', 'svr__shrinking': True}"
