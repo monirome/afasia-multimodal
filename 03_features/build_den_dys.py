@@ -172,7 +172,7 @@ def parse_cha_file(filepath):
                 if line.startswith('@ID:'):
                     parts = line.split(':', 1)[-1].strip()
                     parts = [p.strip() for p in parts.split('|')]
-                    raw = '|'.join(parts).laower()
+                    raw = '|'.join(parts).lower()
                     if 'spa' in raw or 'spanish' in raw:
                         metadata['language'] = 'es'
                     elif 'cat' in raw or 'catalan' in raw or 'ctg' in raw:
