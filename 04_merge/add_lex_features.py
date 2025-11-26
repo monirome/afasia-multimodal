@@ -24,10 +24,10 @@ def main():
     lex_path = 'data/lex_features_ALL.csv'
     
     if not os.path.exists(lex_path):
-        print(f"\n⚠ No existe {lex_path}")
+        print(f"\n No existe {lex_path}")
         print("  Copiando dataset sin LEX...")
         df_main.to_csv('data/dataset_FINAL_COMPLETO.csv', index=False)
-        print("✓ Guardado sin features LEX")
+        print(" Guardado sin features LEX")
         return
     
     # Cargar LEX
@@ -64,7 +64,7 @@ def main():
     df_final.to_csv('data/dataset_FINAL_COMPLETO.csv', index=False)
     
     print(f"\n{'='*70}")
-    print(f"✓ Guardado: data/dataset_FINAL_COMPLETO.csv")
+    print(f" Guardado: data/dataset_FINAL_COMPLETO.csv")
     print(f"  {len(df_final)} pacientes")
     print(f"  {len(df_final.columns)} columnas totales")
     print("="*70)

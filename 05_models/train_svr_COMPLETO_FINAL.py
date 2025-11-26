@@ -9,6 +9,8 @@ SVR COMPLETO FINAL - TODO INCLUIDO
 - SHAP + Permutation + Feature groups
 - Todas las gráficas con métricas de precisión
 - Calibración en TODOS los splits
+- NOMBRES DESCRIPTIVOS EN OUTPUT
+- EXCLUSIÓN MANUAL/AUTOMÁTICA DE FEATURES
 """
 
 import os
@@ -18,6 +20,7 @@ import pathlib
 import shutil
 import warnings
 import argparse
+import json
 warnings.filterwarnings("ignore")
 
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
@@ -53,7 +56,7 @@ except ImportError:
 
 # ======================== PATHS ========================
 PROJECT_BASE = pathlib.Path(__file__).resolve().parent.parent
-DATASET_CSV = PROJECT_BASE / "data" / "dataset_FINAL_COMPLETO.csv"
+DATASET_CSV = PROJECT_BASE / "data" / "dataset_FINAL_CON_POSLM.csv"
 RESULTS_BASE = PROJECT_BASE / "outputs" / "experiments" / "resultados_svr"
 
 os.makedirs(RESULTS_BASE, exist_ok=True)
@@ -102,6 +105,63 @@ def get_simple_features():
     ]
     lex_simple = ['lex_ttr']
     return den_simple + dys_simple + lex_simple
+
+# ======================== POS-LM HELPERS ========================
+POSLM_METHODS = {
+    'kneser-ney': 'poslm_kn_',
+    'backoff': 'poslm_bo_',
+    'lstm': 'poslm_lstm_',
+    'all': None
+}
+
+def get_poslm_features(df, method='kneser-ney'):
+    """
+    Obtiene columnas POS-LM según método elegido
+    
+    Args:
+        method: 'kneser-ney', 'backoff', 'lstm', 'all', 'none'
+    
+    Returns:
+        list: columnas POS-LM filtradas
+    """
+    # Obtener TODAS las columnas POS-LM disponibles
+    all_poslm = [c for c in df.columns if c.startswith('poslm_')]
+    
+    if not all_poslm:
+        return []
+    
+    # Sin POS-LM
+    if method == 'none':
+        return []
+    
+    # Todas las disponibles
+    if method == 'all':
+        return all_poslm
+    
+    # Filtrar por método específico
+    method_prefix_map = {
+        'kneser-ney': 'poslm_kn_',
+        'backoff': 'poslm_bo_',
+        'lstm': 'poslm_lstm_'
+    }
+    
+    if method not in method_prefix_map:
+        print(f"⚠️  Método POS-LM desconocido: '{method}'. Usando 'all'.")
+        return all_poslm
+    
+    prefix = method_prefix_map[method]
+    filtered = [c for c in all_poslm if c.startswith(prefix)]
+    
+    if not filtered:
+        print(f"⚠️  No se encontraron columnas con prefijo '{prefix}'")
+        print(f"    Columnas POS-LM disponibles:")
+        # Mostrar primeras 5 columnas como ejemplo
+        for col in all_poslm[:5]:
+            print(f"      - {col}")
+        if len(all_poslm) > 5:
+            print(f"      ... y {len(all_poslm) - 5} más")
+    
+    return filtered
 
 # ======================== METRICAS ========================
 def compute_metrics(y_true, y_pred):
@@ -488,10 +548,16 @@ def analyze_feature_groups(importance_df, run_dir, log, method_name=""):
     log.info("="*70)
     
     def get_group(feat):
-        if feat.startswith('den_'): return 'DEN'
-        elif feat.startswith('dys_'): return 'DYS'
-        elif feat.startswith('lex_'): return 'LEX'
-        else: return 'OTHER'
+        if feat.startswith('den_'): 
+            return 'DEN'
+        elif feat.startswith('dys_'): 
+            return 'DYS'
+        elif feat.startswith('lex_'): 
+            return 'LEX'
+        elif feat.startswith('poslm_'):
+            return 'POSLM'
+        else: 
+            return 'OTHER'
     
     importance_df = importance_df.copy()
     importance_df['group'] = importance_df['feature'].apply(get_group)
@@ -514,7 +580,7 @@ def analyze_feature_groups(importance_df, run_dir, log, method_name=""):
             grp, total, mean, count, pct))
     
     plt.figure(figsize=(10, 6))
-    colors = {'DEN': 'steelblue', 'DYS': 'coral', 'LEX': 'mediumseagreen', 'OTHER': 'gray'}
+    colors = {'DEN': 'steelblue', 'DYS': 'coral', 'LEX': 'mediumseagreen', 'POSLM': 'goldenrod', 'OTHER': 'gray'}
     bar_colors = [colors.get(g, 'gray') for g in group_stats.index]
     
     plt.bar(group_stats.index, group_stats['sum'], alpha=0.8, edgecolor='black', linewidth=1.5, color=bar_colors)
@@ -552,6 +618,39 @@ def perform_sfs(X_all, y_all, feat_cols, run_dir, log, max_features=40):
     log.info("\n" + "="*70)
     log.info("SEQUENTIAL FORWARD SELECTION")
     log.info("="*70)
+    
+    # ============ FILTRAR FEATURES VACÍAS ============
+    # Identificar features con al menos algún valor no-NaN
+    valid_mask = ~np.isnan(X_all).all(axis=0)
+    n_invalid = (~valid_mask).sum()
+    
+    if n_invalid > 0:
+        log.warning(f"\n⚠️  Encontradas {n_invalid} features completamente vacías")
+        log.warning("   Estas features serán excluidas del SFS:")
+        invalid_features = []
+        for i, (is_valid, feat) in enumerate(zip(valid_mask, feat_cols)):
+            if not is_valid:
+                invalid_features.append(feat)
+                log.warning(f"     [{i}] {feat}")
+        
+        # Filtrar
+        X_all = X_all[:, valid_mask]
+        feat_cols_filtered = [feat_cols[i] for i in range(len(feat_cols)) if valid_mask[i]]
+        
+        log.info(f"\n✓ Features válidas para SFS: {len(feat_cols_filtered)} (de {len(feat_cols)} originales)")
+        
+        # Guardar lista de features excluidas
+        with open(run_dir / "sfs_excluded_features.txt", "w") as f:
+            f.write("FEATURES EXCLUIDAS DE SFS (completamente vacías)\n")
+            f.write("="*70 + "\n")
+            f.write(f"Total excluidas: {n_invalid}\n\n")
+            for feat in invalid_features:
+                f.write(f"  - {feat}\n")
+    else:
+        feat_cols_filtered = feat_cols
+        log.info("\n✓ Todas las features son válidas para SFS")
+    # ================================================
+    
     log.info("\nIniciando SFS...\n")
     
     pipe = Pipeline([
@@ -567,7 +666,7 @@ def perform_sfs(X_all, y_all, feat_cols, run_dir, log, max_features=40):
     
     best_k = len(sfs.k_feature_names_)
     best_features_idx = list(sfs.k_feature_idx_)
-    best_features_list = [feat_cols[i] for i in best_features_idx]
+    best_features_list = [feat_cols_filtered[i] for i in best_features_idx]
     best_score = -sfs.k_score_
     
     log.info("\n" + "="*70)
@@ -590,23 +689,95 @@ def main():
     parser = argparse.ArgumentParser(description='SVR Training COMPLETO')
     parser.add_argument('--features', type=str, default='full',
                        choices=['simple', 'full', 'sfs'],
-                       help='Feature selection')
+                       help='Feature selection: simple (basic), full (all), sfs (sequential forward selection)')
+    parser.add_argument('--poslm-method', type=str, default='none',
+                       choices=['none', 'kneser-ney', 'backoff', 'lstm', 'all'],
+                       help='POS-LM method: none, kneser-ney, backoff, lstm, all')
+    
+    # ============ NUEVO: EXCLUIR FEATURES MANUALMENTE ============
+    parser.add_argument('--exclude-features', type=str, default=None,
+                       help='Archivo con features a excluir (una por línea) o lista separada por comas')
+    parser.add_argument('--exclude-empty', action='store_true',
+                       help='Excluir automáticamente features completamente vacías')
+    # =============================================================
+    
     args = parser.parse_args()
     
+    # ============ NOMBRE DESCRIPTIVO ============
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = pathlib.Path(RESULTS_BASE) / "SVR_FINAL_{}_{}_features".format(ts, args.features.upper())
+    
+    config_name = args.features.upper()
+    if args.poslm_method != 'none':
+        poslm_label = args.poslm_method.upper().replace('-', '')
+        config_name += f"_POSLM-{poslm_label}"
+    else:
+        config_name += "_NO-POSLM"
+    
+    run_name = f"SVR_{ts}_{config_name}"
+    run_dir = pathlib.Path(RESULTS_BASE) / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
     
     log = set_logger(run_dir)
     log.info("="*70)
-    log.info("SVR COMPLETO FINAL - {} FEATURES".format(args.features.upper()))
+    log.info(f"SVR COMPLETO FINAL - {config_name}")
     log.info("="*70)
-    log.info("Output: {}".format(run_dir))
+    log.info(f"Output: {run_dir}")
+    log.info(f"Configuration:")
+    log.info(f"  Features:      {args.features}")
+    log.info(f"  POS-LM method: {args.poslm_method}")
+    log.info(f"  Dataset:       {DATASET_CSV.name}")
+    log.info(f"  Exclude empty: {args.exclude_empty}")
+    if args.exclude_features:
+        log.info(f"  Exclude file:  {args.exclude_features}")
     
     if SHAP_AVAILABLE:
-        log.info("SHAP disponible: SI")
+        log.info("  SHAP:          disponible")
     else:
-        log.info("SHAP disponible: NO (instalar con: pip install shap)")
+        log.info("  SHAP:          NO disponible (pip install shap)")
+    
+    # ============ GUARDAR CONFIG ============
+    config_info = {
+        'timestamp': ts,
+        'config_name': config_name,
+        'features': args.features,
+        'poslm_method': args.poslm_method,
+        'exclude_empty': args.exclude_empty,
+        'exclude_features': args.exclude_features,
+        'output_dir': str(run_dir),
+        'dataset': str(DATASET_CSV),
+        'shap_available': SHAP_AVAILABLE,
+    }
+    
+    with open(run_dir / "CONFIG.txt", "w", encoding="utf-8") as f:
+        f.write("="*70 + "\n")
+        f.write("CONFIGURACIÓN DEL EXPERIMENTO\n")
+        f.write("="*70 + "\n\n")
+        f.write(f"Nombre:          {config_name}\n")
+        f.write(f"Fecha/hora:      {ts}\n")
+        f.write(f"Features:        {args.features}\n")
+        f.write(f"POS-LM method:   {args.poslm_method}\n")
+        f.write(f"Exclude empty:   {args.exclude_empty}\n")
+        if args.exclude_features:
+            f.write(f"Exclude file:    {args.exclude_features}\n")
+        f.write(f"Dataset:         {config_info['dataset']}\n")
+        f.write(f"Output dir:      {config_info['output_dir']}\n")
+        f.write(f"SHAP:            {'Disponible' if SHAP_AVAILABLE else 'NO disponible'}\n")
+        f.write("\n" + "="*70 + "\n")
+        f.write("COMANDO PARA REPLICAR:\n")
+        f.write("="*70 + "\n")
+        f.write(f"python3 05_models/train_svr_COMPLETO_FINAL.py \\\n")
+        f.write(f"    --features {args.features} \\\n")
+        f.write(f"    --poslm-method {args.poslm_method}")
+        if args.exclude_empty:
+            f.write(" \\\n    --exclude-empty")
+        if args.exclude_features:
+            f.write(f" \\\n    --exclude-features {args.exclude_features}")
+        f.write("\n\n" + "="*70 + "\n")
+    
+    with open(run_dir / "config.json", "w") as f:
+        json.dump(config_info, f, indent=2)
+    
+    log.info("\nConfig guardada: CONFIG.txt, config.json")
     
     try:
         shutil.copy2(__file__, run_dir / pathlib.Path(__file__).name)
@@ -739,13 +910,133 @@ def main():
     log.info("\n" + "="*70)
     log.info("FEATURES")
     log.info("="*70)
+
+    # Columnas base (DEN, DYS, LEX)
+    base_feat_cols = sorted([c for c in df.columns if c.startswith(('den_', 'dys_', 'lex_'))])
+
+    # Columnas POS-LM (si se solicitaron)
+    poslm_feat_cols = []
+    if args.poslm_method != 'none':
+        poslm_feat_cols = get_poslm_features(df, method=args.poslm_method)
+        
+        if poslm_feat_cols:
+            log.info(f"\nPOS-LM método: {args.poslm_method}")
+            log.info(f"  Columnas POS-LM encontradas: {len(poslm_feat_cols)}")
+        else:
+            log.warning(f"\n⚠️  No se encontraron columnas POS-LM para '{args.poslm_method}'")
+            log.warning(f"    Columnas disponibles:")
+            available = [c for c in df.columns if c.startswith('poslm_')]
+            if available:
+                prefixes = set('_'.join(c.split('_')[:2]) + '_' for c in available)
+                for prefix in sorted(prefixes):
+                    count = len([c for c in available if c.startswith(prefix)])
+                    log.warning(f"      {prefix}: {count} columnas")
+            else:
+                log.warning("      (No hay columnas POS-LM en el dataset)")
+
+    # Combinar todas las features disponibles
+    all_feat_cols = base_feat_cols + poslm_feat_cols
+
+    # ============ NUEVO: EXCLUIR FEATURES ============
+    features_to_exclude = set()
     
-    all_feat_cols = sorted([c for c in df.columns if c.startswith(('den_', 'dys_', 'lex_'))])
+    # 1. Excluir features vacías automáticamente
+    if args.exclude_empty:
+        log.info("\n🔍 Detectando features vacías...")
+        X_temp = df[all_feat_cols].values
+        empty_mask = np.isnan(X_temp).all(axis=0)
+        empty_features = [all_feat_cols[i] for i, is_empty in enumerate(empty_mask) if is_empty]
+        
+        if empty_features:
+            log.info(f"   Encontradas {len(empty_features)} features vacías:")
+            for feat in empty_features:
+                log.info(f"     - {feat}")
+            features_to_exclude.update(empty_features)
+        else:
+            log.info("   ✓ No se encontraron features vacías")
     
+    # 2. Excluir features especificadas manualmente
+    if args.exclude_features:
+        log.info("\n🔍 Procesando exclusiones manuales...")
+        
+        # Verificar si es un archivo o una lista
+        if ',' in args.exclude_features or not os.path.exists(args.exclude_features):
+            # Lista separada por comas
+            manual_exclude = [f.strip() for f in args.exclude_features.split(',')]
+            log.info(f"   Desde argumentos: {len(manual_exclude)} features")
+        else:
+            # Archivo
+            with open(args.exclude_features, 'r') as f:
+                manual_exclude = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+            log.info(f"   Desde archivo '{args.exclude_features}': {len(manual_exclude)} features")
+        
+        # Validar que existen
+        invalid = [f for f in manual_exclude if f not in all_feat_cols]
+        if invalid:
+            log.warning(f"   ⚠️  {len(invalid)} features no encontradas en el dataset:")
+            for feat in invalid[:5]:
+                log.warning(f"       - {feat}")
+            if len(invalid) > 5:
+                log.warning(f"       ... y {len(invalid) - 5} más")
+        
+        valid_exclude = [f for f in manual_exclude if f in all_feat_cols]
+        if valid_exclude:
+            log.info(f"   ✓ {len(valid_exclude)} features válidas para excluir")
+            features_to_exclude.update(valid_exclude)
+    
+    # 3. Aplicar exclusiones
+    if features_to_exclude:
+        all_feat_cols_original = all_feat_cols.copy()
+        all_feat_cols = [f for f in all_feat_cols if f not in features_to_exclude]
+        
+        log.info(f"\n📊 RESUMEN DE EXCLUSIONES:")
+        log.info(f"   Features originales: {len(all_feat_cols_original)}")
+        log.info(f"   Features excluidas:  {len(features_to_exclude)}")
+        log.info(f"   Features finales:    {len(all_feat_cols)}")
+        
+        # Guardar lista de exclusiones
+        exclude_file = run_dir / "excluded_features.txt"
+        with open(exclude_file, "w") as f:
+            f.write("FEATURES EXCLUIDAS\n")
+            f.write("="*70 + "\n")
+            f.write(f"Total excluidas: {len(features_to_exclude)}\n\n")
+            for feat in sorted(features_to_exclude):
+                f.write(f"  - {feat}\n")
+        log.info(f"   Lista guardada: {exclude_file.name}")
+    # =================================================
+
+    # Aplicar selección de features
     if args.features == 'simple':
-        feat_cols = [f for f in get_simple_features() if f in df.columns]
+        simple_base = [
+            'den_words_per_min', 'den_phones_per_min', 'den_W', 'den_OCW',
+            'den_words_utt_mean', 'den_phones_utt_mean',
+            'den_nouns', 'den_verbs', 'den_nouns_per_verb', 'den_noun_ratio',
+            'den_light_verbs', 'den_determiners', 'den_demonstratives',
+            'den_prepositions', 'den_adjectives', 'den_adverbs',
+            'den_pronoun_ratio', 'den_function_words',
+            'dys_fillers_per_min', 'dys_fillers_per_word', 'dys_fillers_per_phone',
+            'dys_pauses_per_min', 'dys_long_pauses_per_min', 'dys_short_pauses_per_min',
+            'dys_pauses_per_word', 'dys_long_pauses_per_word', 'dys_short_pauses_per_word',
+            'dys_pause_sec_mean',
+            'lex_ttr'
+        ]
+        
+        feat_cols = [f for f in simple_base if f in df.columns]
+        
+        if args.poslm_method != 'none' and poslm_feat_cols:
+            if args.poslm_method in ['kneser-ney', 'all']:
+                feat_cols.extend([f for f in ['poslm_kn_bigram_ce_mean', 'poslm_kn_trigram_ce_mean'] 
+                                if f in df.columns])
+            if args.poslm_method in ['backoff', 'all']:
+                feat_cols.extend([f for f in ['poslm_bo_bigram_ce_mean', 'poslm_bo_trigram_ce_mean'] 
+                                if f in df.columns])
+            if args.poslm_method in ['lstm', 'all']:
+                feat_cols.extend([f for f in ['poslm_lstm_ce_mean', 'poslm_lstm_ppl_mean'] 
+                                if f in df.columns])
+
     elif args.features == 'full':
         feat_cols = all_feat_cols
+
     elif args.features == 'sfs':
         X_pwa_en_all = df_en[all_feat_cols].values
         y_pwa_en_all = df_en['QA'].values
@@ -760,30 +1051,42 @@ def main():
             y_all = y_pwa_en_all
         
         selected_idx, feat_cols = perform_sfs(X_all, y_all, all_feat_cols, run_dir, log)
-    
+
+    # Contar por grupo
     den_cols = [f for f in feat_cols if f.startswith('den_')]
     dys_cols = [f for f in feat_cols if f.startswith('dys_')]
     lex_cols = [f for f in feat_cols if f.startswith('lex_')]
-    
+    poslm_cols = [f for f in feat_cols if f.startswith('poslm_')]
+
     log.info("\nFeatures:")
-    log.info("  DEN: {}".format(len(den_cols)))
-    log.info("  DYS: {}".format(len(dys_cols)))
-    log.info("  LEX: {}".format(len(lex_cols)))
-    log.info("  TOTAL: {}".format(len(feat_cols)))
-    
-    with open(run_dir / "features_used.txt", "w", encoding="utf-8") as f:
-        f.write("FEATURES ({})\n".format(args.features.upper()))
+    log.info(f"  DEN:   {len(den_cols)}")
+    log.info(f"  DYS:   {len(dys_cols)}")
+    log.info(f"  LEX:   {len(lex_cols)}")
+    log.info(f"  POSLM: {len(poslm_cols)}")
+    log.info(f"  TOTAL: {len(feat_cols)}")
+
+    # Guardar lista de features
+    with open(run_dir / "FEATURES.txt", "w", encoding="utf-8") as f:
+        f.write(f"FEATURES ({args.features.upper()})\n")
         f.write("="*70 + "\n")
-        f.write("Total: {}\n\n".format(len(feat_cols)))
-        f.write("DEN ({}):\n".format(len(den_cols)))
-        for c in den_cols:
-            f.write("  - {}\n".format(c))
-        f.write("\nDYS ({}):\n".format(len(dys_cols)))
-        for c in dys_cols:
-            f.write("  - {}\n".format(c))
-        f.write("\nLEX ({}):\n".format(len(lex_cols)))
-        for c in lex_cols:
-            f.write("  - {}\n".format(c))
+        f.write(f"Total: {len(feat_cols)}\n\n")
+        
+        f.write(f"DEN ({len(den_cols)}):\n")
+        for c in sorted(den_cols):
+            f.write(f"  - {c}\n")
+        
+        f.write(f"\nDYS ({len(dys_cols)}):\n")
+        for c in sorted(dys_cols):
+            f.write(f"  - {c}\n")
+        
+        f.write(f"\nLEX ({len(lex_cols)}):\n")
+        for c in sorted(lex_cols):
+            f.write(f"  - {c}\n")
+        
+        if poslm_cols:
+            f.write(f"\nPOSLM ({len(poslm_cols)}):\n")
+            for c in sorted(poslm_cols):
+                f.write(f"  - {c}\n")
     
     # ==================== PREPARAR DATOS ====================
     X_pwa_en = df_en[feat_cols].values
@@ -1001,6 +1304,9 @@ def main():
     log.info("="*70)
     log.info("Resultados guardados en: {}".format(run_dir))
     log.info("\nArchivos generados:")
+    log.info("  - Configuración: CONFIG.txt, config.json")
+    if features_to_exclude:
+        log.info("  - Exclusiones: excluded_features.txt")
     log.info("  - Modelo: model_final.pkl")
     log.info("  - Calibrador: calibrator.pkl")
     log.info("  - CV inglés: CV_PWA_*.csv/png")
