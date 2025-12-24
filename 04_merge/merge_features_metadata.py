@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# merge_features_metadata.py
+# 04_merge/merge_features_metadata.py
 """Merge DEN+DYS features con metadata WAB"""
 
 import os

@@ -1,4 +1,4 @@
-# Datos y resultados (excluir completamente)
+# --- EXCLUSIONES GENERALES ---
 data/
 logs/
 archive_legacy/
@@ -6,15 +6,33 @@ notebooks/
 jobs/
 utils/
 aphasia_output/
-outputs/
-utils/
-
-
-# Modelos pesados
+backup_dic2025/
+catboost_info/
+job_venv/
+resultados_experimentos_svr_completo.csv
 *.pt
-
-# Cosas comunes que no quieres en el repo (opcional)
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .env
+*.txt
+*.sh
+*.tar.gz
+*.zip
+
+# --- REGLAS DE LA CARPETA OUTPUTS ---
+# 1. Ignoramos TODO lo que hay en outputs por defecto
+outputs/*
+
+# 2. Pero PERMITIMOS entrar en la carpeta experiments (solo entrar, no el contenido aún)
+!outputs/experiments/
+
+# 3. Ahora ignoramos TODO lo que hay dentro de experiments
+outputs/experiments/*
+
+# 4. Y finalmente hacemos las excepciones para lo que SÍ quieres guardar
+!outputs/experiments/best_models/
+!outputs/experiments/best_models/**
+
+!outputs/experiments/ENSEMBLE_FINAL/
+!outputs/experiments/ENSEMBLE_FINAL/**

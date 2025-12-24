@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# aphasia_paper_replication_FINAL.py
+# 02_alignments/aphasia_paper_replication_FINAL.py
 # -*- coding: utf-8 -*-
 """
 REPLICACIÓN DEL PIPELINE DE ALINEADO Y FEATURES (Le et al., 2018) CON WHISPERX

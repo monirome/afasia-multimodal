@@ -520,13 +520,13 @@ def extract_poslm_features_for_dataset(df, text_column='transcript',
         raise ValueError(" No hay datos Control para entrenar POS-LM")
     
     # Extraer POS de Control
-    print("\n🔍 Extrayendo secuencias POS de Control...")
+    print("\n Extrayendo secuencias POS de Control...")
     control_texts = df_control[text_column].dropna().tolist()
     control_pos_sequences = extract_pos_sequences(control_texts)
     print(f"  ✓ {len(control_pos_sequences)} secuencias POS")
     
     # Entrenar modelos
-    print("\n🤖 Entrenando modelos...")
+    print("\n Entrenando modelos...")
     
     models_dict = {}
     
@@ -553,7 +553,7 @@ def extract_poslm_features_for_dataset(df, text_column='transcript',
         print(f"\n Modelos guardados: models/poslm_models_all.pkl")
     
     # Calcular features por paciente
-    print("\n📊 Calculando features por paciente...")
+    print("\n Calculando features por paciente...")
     
     all_features = []
     unique_patients = df[patient_column].unique()

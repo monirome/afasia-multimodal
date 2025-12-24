@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# add_lex_features.py
+# 04_merge/add_lex_features.py
 """Agrega features LEX al dataset final"""
 
 import os

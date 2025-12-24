@@ -11,6 +11,8 @@ SVR COMPLETO FINAL - TODO INCLUIDO
 - Calibración en TODOS los splits
 - NOMBRES DESCRIPTIVOS EN OUTPUT
 - EXCLUSIÓN MANUAL/AUTOMÁTICA DE FEATURES
+- CV INTERNO CONFIGURABLE (--cv-inner)
+- Z-NORMALIZACIÓN CON STATS DE CONTROLES (--znorm-controls) - CORREGIDO
 """
 
 import os
@@ -25,6 +27,11 @@ warnings.filterwarnings("ignore")
 
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
+
+# Asegurar que se puede importar experiment_logger desde 05_models
+SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.append(str(SCRIPT_DIR))
 
 import logging
 import joblib
@@ -45,6 +52,13 @@ from sklearn.base import clone
 from sklearn.isotonic import IsotonicRegression
 from scipy.stats import spearmanr, pearsonr, ttest_ind
 from sklearn.inspection import permutation_importance
+
+# Logger de experimentos
+from experiment_logger import (
+    ExperimentLogger,
+    create_experiment_config,
+    create_experiment_results,
+)
 
 # Intentar importar SHAP
 try:
@@ -86,6 +100,72 @@ def set_logger(run_dir):
     log.addHandler(fh)
     
     return log
+
+# ======================== EXTRACT SUBDATASET (NUEVO PARA SPLIT ESTRATIFICADO) ========================
+def extract_subdataset_from_patient_id(patient_ids):
+    """
+    Extrae el nombre del sub-dataset desde patient_id.
+    Como en Le et al. 2018: "we withhold 25% of speakers from each sub-dataset"
+    
+    Ejemplos:
+        "adler01a" -> "adler"
+        "TCU02a" -> "tcu"
+        "kurland12" -> "kurland"
+        "scale03a" -> "scale"
+    
+    Args:
+        patient_ids: pandas Series o array de patient_ids
+    
+    Returns:
+        numpy array de strings con subdatasets extraídos (lowercase, sin NaN)
+    """
+    if isinstance(patient_ids, pd.Series):
+        s = patient_ids.astype(str)
+    else:
+        s = pd.Series(list(patient_ids), dtype=object).astype(str)
+
+    sub = s.str.extract(r'^([A-Za-z]+)', expand=False).str.lower()
+    sub = sub.fillna("unknown")
+    sub = sub.replace(["nan", "none", "NaN", "None"], "unknown")
+
+    return sub.astype(str).values
+
+# ======================== Z-NORMALIZATION FUNCTIONS ========================
+def compute_control_stats(X_control):
+    """
+    Calcula mean y std de controles para z-normalization.
+    
+    Args:
+        X_control: Features de controles (n_controls, n_features)
+    
+    Returns:
+        mean_control, std_control
+    """
+    X_control = np.asarray(X_control, dtype=float)
+    
+    mean_control = np.nanmean(X_control, axis=0)
+    std_control = np.nanstd(X_control, axis=0, ddof=1)
+    
+    # Evitar división por cero
+    std_control[std_control == 0] = 1.0
+    std_control[np.isnan(std_control)] = 1.0
+    
+    return mean_control, std_control
+
+def apply_znorm(X, mean, std):
+    """
+    Aplica z-normalization con mean y std dados.
+    
+    Args:
+        X: Features a normalizar
+        mean: Media para restar
+        std: Std para dividir
+    
+    Returns:
+        X_normalized
+    """
+    X = np.asarray(X, dtype=float)
+    return (X - mean) / std
 
 # ======================== FEATURES ========================
 def get_simple_features():
@@ -146,16 +226,15 @@ def get_poslm_features(df, method='kneser-ney'):
     }
     
     if method not in method_prefix_map:
-        print(f"⚠️  Método POS-LM desconocido: '{method}'. Usando 'all'.")
+        print(f"  Método POS-LM desconocido: '{method}'. Usando 'all'.")
         return all_poslm
     
     prefix = method_prefix_map[method]
     filtered = [c for c in all_poslm if c.startswith(prefix)]
     
     if not filtered:
-        print(f"⚠️  No se encontraron columnas con prefijo '{prefix}'")
+        print(f"  No se encontraron columnas con prefijo '{prefix}'")
         print(f"    Columnas POS-LM disponibles:")
-        # Mostrar primeras 5 columnas como ejemplo
         for col in all_poslm[:5]:
             print(f"      - {col}")
         if len(all_poslm) > 5:
@@ -171,12 +250,12 @@ def compute_metrics(y_true, y_pred):
     
     try:
         pearson_r, pearson_p = pearsonr(y_true, y_pred)
-    except:
+    except Exception:
         pearson_r, pearson_p = np.nan, np.nan
     
     try:
         spearman_rho, spearman_p = spearmanr(y_true, y_pred)
-    except:
+    except Exception:
         spearman_rho, spearman_p = np.nan, np.nan
     
     return {
@@ -608,7 +687,7 @@ def analyze_feature_groups(importance_df, run_dir, log, method_name=""):
     return group_stats
 
 # ======================== FEATURE SELECTION ========================
-def perform_sfs(X_all, y_all, feat_cols, run_dir, log, max_features=40):
+def perform_sfs(X_all, y_all, feat_cols, run_dir, log, use_znorm_controls, X_control_all, max_features=40):
     try:
         from mlxtend.feature_selection import SequentialFeatureSelector as SFS
     except ImportError:
@@ -620,49 +699,72 @@ def perform_sfs(X_all, y_all, feat_cols, run_dir, log, max_features=40):
     log.info("="*70)
     
     # ============ FILTRAR FEATURES VACÍAS ============
-    # Identificar features con al menos algún valor no-NaN
     valid_mask = ~np.isnan(X_all).all(axis=0)
     n_invalid = (~valid_mask).sum()
     
     if n_invalid > 0:
-        log.warning(f"\n⚠️  Encontradas {n_invalid} features completamente vacías")
+        log.warning("\n  Encontradas {} features completamente vacías".format(n_invalid))
         log.warning("   Estas features serán excluidas del SFS:")
         invalid_features = []
         for i, (is_valid, feat) in enumerate(zip(valid_mask, feat_cols)):
             if not is_valid:
                 invalid_features.append(feat)
-                log.warning(f"     [{i}] {feat}")
+                log.warning("     [{}] {}".format(i, feat))
         
-        # Filtrar
         X_all = X_all[:, valid_mask]
+        if X_control_all is not None:
+            X_control_all = X_control_all[:, valid_mask]
         feat_cols_filtered = [feat_cols[i] for i in range(len(feat_cols)) if valid_mask[i]]
         
-        log.info(f"\n✓ Features válidas para SFS: {len(feat_cols_filtered)} (de {len(feat_cols)} originales)")
+        log.info("\n✓ Features válidas para SFS: {} (de {} originales)".format(
+            len(feat_cols_filtered), len(feat_cols)))
         
-        # Guardar lista de features excluidas
         with open(run_dir / "sfs_excluded_features.txt", "w") as f:
             f.write("FEATURES EXCLUIDAS DE SFS (completamente vacías)\n")
             f.write("="*70 + "\n")
-            f.write(f"Total excluidas: {n_invalid}\n\n")
+            f.write("Total excluidas: {}\n\n".format(n_invalid))
             for feat in invalid_features:
-                f.write(f"  - {feat}\n")
+                f.write("  - {}\n".format(feat))
     else:
         feat_cols_filtered = feat_cols
         log.info("\n✓ Todas las features son válidas para SFS")
     # ================================================
     
-    log.info("\nIniciando SFS...\n")
+    log.info("\nIniciando SFS...")
     
-    pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-        ("svr", SVR(C=10, epsilon=0.1, kernel='rbf', gamma='scale'))
-    ])
-    
-    sfs = SFS(pipe, k_features=(1, max_features), forward=True, floating=False,
-              scoring='neg_mean_absolute_error', cv=5, n_jobs=-1, verbose=2)
-    
-    sfs.fit(X_all, y_all)
+    # Pre-procesar según tipo de normalización
+    if use_znorm_controls and X_control_all is not None:
+        log.info("  SFS con z-norm de controles")
+        
+        # Imputar
+        imputer = SimpleImputer(strategy="median")
+        X_all_imputed = imputer.fit_transform(X_all)
+        X_control_imputed = imputer.transform(X_control_all)
+        
+        # Calcular stats de controles
+        mean_ctrl, std_ctrl = compute_control_stats(X_control_imputed)
+        
+        # Normalizar
+        X_all_norm = apply_znorm(X_all_imputed, mean_ctrl, std_ctrl)
+        
+        # SFS sobre datos normalizados (sin pipeline)
+        svr = SVR(C=10, epsilon=0.1, kernel='rbf', gamma='scale')
+        sfs = SFS(svr, k_features=(1, max_features), forward=True, floating=False,
+                  scoring='neg_mean_absolute_error', cv=5, n_jobs=-1, verbose=2)
+        sfs.fit(X_all_norm, y_all)
+    else:
+        log.info("  SFS con StandardScaler")
+        
+        # Pipeline tradicional
+        pipe = Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            ("svr", SVR(C=10, epsilon=0.1, kernel='rbf', gamma='scale'))
+        ])
+        
+        sfs = SFS(pipe, k_features=(1, max_features), forward=True, floating=False,
+                  scoring='neg_mean_absolute_error', cv=5, n_jobs=-1, verbose=2)
+        sfs.fit(X_all, y_all)
     
     best_k = len(sfs.k_feature_names_)
     best_features_idx = list(sfs.k_feature_idx_)
@@ -694,11 +796,25 @@ def main():
                        choices=['none', 'kneser-ney', 'backoff', 'lstm', 'all'],
                        help='POS-LM method: none, kneser-ney, backoff, lstm, all')
     
-    # ============ NUEVO: EXCLUIR FEATURES MANUALMENTE ============
+    # CV interno para GridSearchCV
+    parser.add_argument('--cv-inner', type=int, default=5,
+                       help='Número de folds para el GridSearchCV interno (búsqueda de hiperparámetros)')
+    
+    # ============ Z-NORMALIZATION CON STATS DE CONTROLES ============
+    parser.add_argument('--znorm-controls', action='store_true',
+                       help='Usar z-normalización con estadísticas de controles (como en Le et al. 2018)')
+    # ================================================================
+    
+    # ============ EXCLUIR FEATURES MANUALMENTE ============
     parser.add_argument('--exclude-features', type=str, default=None,
                        help='Archivo con features a excluir (una por línea) o lista separada por comas')
     parser.add_argument('--exclude-empty', action='store_true',
                        help='Excluir automáticamente features completamente vacías')
+    # =======================================================
+    
+    # ============ NOTAS PARA EL EXPERIMENTO (LOGGER) ============
+    parser.add_argument('--notes', type=str, default="",
+                       help='Notas para el experimento (se guardan en el logger)')
     # =============================================================
     
     args = parser.parse_args()
@@ -713,6 +829,15 @@ def main():
     else:
         config_name += "_NO-POSLM"
     
+    # Añadir indicador de z-norm
+    if args.znorm_controls:
+        config_name += "_ZNORM-CTRL"
+    else:
+        config_name += "_ZNORM-STD"
+    
+    # Añadir indicador de split estratificado
+    config_name += "_STRATIFIED"
+    
     run_name = f"SVR_{ts}_{config_name}"
     run_dir = pathlib.Path(RESULTS_BASE) / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -722,18 +847,23 @@ def main():
     log.info(f"SVR COMPLETO FINAL - {config_name}")
     log.info("="*70)
     log.info(f"Output: {run_dir}")
-    log.info(f"Configuration:")
-    log.info(f"  Features:      {args.features}")
-    log.info(f"  POS-LM method: {args.poslm_method}")
-    log.info(f"  Dataset:       {DATASET_CSV.name}")
-    log.info(f"  Exclude empty: {args.exclude_empty}")
+    log.info("Configuration:")
+    log.info(f"  Features:          {args.features}")
+    log.info(f"  POS-LM method:     {args.poslm_method}")
+    log.info(f"  CV inner folds:    {args.cv_inner}")
+    log.info(f"  Z-norm controls:   {args.znorm_controls}")
+    log.info(f"  Stratified CV:     True (25% de cada sub-dataset)")
+    log.info(f"  Dataset:           {DATASET_CSV.name}")
+    log.info(f"  Exclude empty:     {args.exclude_empty}")
     if args.exclude_features:
-        log.info(f"  Exclude file:  {args.exclude_features}")
+        log.info(f"  Exclude file/list: {args.exclude_features}")
+    if args.notes:
+        log.info(f"  Notes:             {args.notes}")
     
     if SHAP_AVAILABLE:
-        log.info("  SHAP:          disponible")
+        log.info("  SHAP:              disponible")
     else:
-        log.info("  SHAP:          NO disponible (pip install shap)")
+        log.info("  SHAP:              NO disponible (pip install shap)")
     
     # ============ GUARDAR CONFIG ============
     config_info = {
@@ -741,11 +871,15 @@ def main():
         'config_name': config_name,
         'features': args.features,
         'poslm_method': args.poslm_method,
+        'cv_inner': args.cv_inner,
+        'znorm_controls': args.znorm_controls,
+        'stratified_cv': True,
         'exclude_empty': args.exclude_empty,
         'exclude_features': args.exclude_features,
         'output_dir': str(run_dir),
         'dataset': str(DATASET_CSV),
         'shap_available': SHAP_AVAILABLE,
+        'notes': args.notes,
     }
     
     with open(run_dir / "CONFIG.txt", "w", encoding="utf-8") as f:
@@ -756,22 +890,32 @@ def main():
         f.write(f"Fecha/hora:      {ts}\n")
         f.write(f"Features:        {args.features}\n")
         f.write(f"POS-LM method:   {args.poslm_method}\n")
+        f.write(f"CV inner folds:  {args.cv_inner}\n")
+        f.write(f"Z-norm controls: {args.znorm_controls}\n")
+        f.write(f"Stratified CV:   True (25% de cada sub-dataset)\n")
         f.write(f"Exclude empty:   {args.exclude_empty}\n")
         if args.exclude_features:
             f.write(f"Exclude file:    {args.exclude_features}\n")
+        if args.notes:
+            f.write(f"Notas:           {args.notes}\n")
         f.write(f"Dataset:         {config_info['dataset']}\n")
         f.write(f"Output dir:      {config_info['output_dir']}\n")
         f.write(f"SHAP:            {'Disponible' if SHAP_AVAILABLE else 'NO disponible'}\n")
         f.write("\n" + "="*70 + "\n")
         f.write("COMANDO PARA REPLICAR:\n")
         f.write("="*70 + "\n")
-        f.write(f"python3 05_models/train_svr_COMPLETO_FINAL.py \\\n")
+        f.write("python3 05_models/train_svr_COMPLETO_FINAL.py \\\n")
         f.write(f"    --features {args.features} \\\n")
-        f.write(f"    --poslm-method {args.poslm_method}")
+        f.write(f"    --poslm-method {args.poslm_method} \\\n")
+        f.write(f"    --cv-inner {args.cv_inner}")
+        if args.znorm_controls:
+            f.write(" \\\n    --znorm-controls")
         if args.exclude_empty:
             f.write(" \\\n    --exclude-empty")
         if args.exclude_features:
             f.write(f" \\\n    --exclude-features {args.exclude_features}")
+        if args.notes:
+            f.write(f" \\\n    --notes \"{args.notes}\"")
         f.write("\n\n" + "="*70 + "\n")
     
     with open(run_dir / "config.json", "w") as f:
@@ -781,7 +925,7 @@ def main():
     
     try:
         shutil.copy2(__file__, run_dir / pathlib.Path(__file__).name)
-    except:
+    except Exception:
         pass
     
     # ==================== CARGAR DATOS ====================
@@ -826,6 +970,8 @@ def main():
     log.info("Con QA valido: {}".format(len(df)))
     
     has_language = 'language' in df.columns
+    subsets_pwa_en = None
+    
     if has_language:
         log.info("\nDistribucion por idioma:")
         for lang, count in df['language'].value_counts(dropna=False).items():
@@ -852,19 +998,6 @@ def main():
         log.error("Muy pocos PWA (n={})".format(len(df_pwa)))
         sys.exit(1)
     
-    # Columna de sub-dataset para estratificar (opcional)
-    subset_col = None
-    for candidate in ["subdataset_paper", "subdataset", "subset"]:
-        if candidate in df_pwa.columns:
-            subset_col = candidate
-            break
-
-    if subset_col is not None:
-        log.info("\nColumna de sub-dataset encontrada: '%s'", subset_col)
-    else:
-        log.warning("\nNO se encontró columna de sub-dataset (subdataset_paper / subdataset / subset). "
-                    "Se usará GroupKFold sin estratificación por sub-dataset.")
-    
     # Splits por idioma
     df_en = pd.DataFrame()
     df_es = pd.DataFrame()
@@ -883,15 +1016,28 @@ def main():
         
         mask_ca = langs.isin(["ca", "catalan"])
         df_ca = df_pwa[mask_ca].copy() if mask_ca.any() else pd.DataFrame()
-        
-        # Sub-datasets para PWA EN (si tenemos columna)
-        if subset_col is not None and subset_col in df_en.columns:
-            subsets_pwa_en = df_en[subset_col].astype(str).values
-            log.info("\nDistribución de sub-datasets en PWA EN:")
-            for label, count in pd.Series(subsets_pwa_en).value_counts().items():
-                log.info("  {}: {}".format(label, count))
+
+        # ============ EXTRAER SUB-DATASETS (NUEVO) ============
+        if len(df_en) > 0 and 'patient_id' in df_en.columns:
+            subsets_pwa_en = extract_subdataset_from_patient_id(df_en["patient_id"])
+
+            # Sanity check adicional: asegurar strings limpios
+            subsets_series = pd.Series(subsets_pwa_en, dtype=object)
+            subsets_series = subsets_series.fillna("unknown")
+            subsets_series = subsets_series.replace(["nan", "none", "NaN", "None"], "unknown")
+            subsets_pwa_en = subsets_series.astype(str).values
+
+            log.info("\nSub-datasets extraídos de patient_id:")
+            unique_subsets = np.unique(subsets_pwa_en)
+            log.info("  Total sub-datasets únicos: {}".format(len(unique_subsets)))
+            log.info("  Sub-datasets: {}".format(', '.join(unique_subsets)))
+            
+            log.info("\n  Distribución de pacientes por sub-dataset:")
+            for subset, count in pd.Series(subsets_pwa_en).value_counts().items():
+                log.info("    {}: {} pacientes".format(subset, count))
         else:
             subsets_pwa_en = None
+        # ======================================================
         
         log.info("\nPor idioma (PWA):")
         log.info("  EN (train): {}".format(len(df_en)))
@@ -906,15 +1052,23 @@ def main():
         subsets_pwa_en = None
         log.info("\nSin idioma, usando todos PWA como EN")
     
+    # Info para el logger
+    df_info = {
+        "n_total": len(df),
+        "n_pwa": len(df_pwa),
+        "n_control": len(df_control),
+        "n_en": len(df_en),
+        "n_es": len(df_es),
+        "n_ca": len(df_ca),
+    }
+    
     # ==================== FEATURES ====================
     log.info("\n" + "="*70)
     log.info("FEATURES")
     log.info("="*70)
 
-    # Columnas base (DEN, DYS, LEX)
     base_feat_cols = sorted([c for c in df.columns if c.startswith(('den_', 'dys_', 'lex_'))])
 
-    # Columnas POS-LM (si se solicitaron)
     poslm_feat_cols = []
     if args.poslm_method != 'none':
         poslm_feat_cols = get_poslm_features(df, method=args.poslm_method)
@@ -923,8 +1077,8 @@ def main():
             log.info(f"\nPOS-LM método: {args.poslm_method}")
             log.info(f"  Columnas POS-LM encontradas: {len(poslm_feat_cols)}")
         else:
-            log.warning(f"\n⚠️  No se encontraron columnas POS-LM para '{args.poslm_method}'")
-            log.warning(f"    Columnas disponibles:")
+            log.warning(f"\n  No se encontraron columnas POS-LM para '{args.poslm_method}'")
+            log.warning("    Columnas disponibles:")
             available = [c for c in df.columns if c.startswith('poslm_')]
             if available:
                 prefixes = set('_'.join(c.split('_')[:2]) + '_' for c in available)
@@ -934,15 +1088,13 @@ def main():
             else:
                 log.warning("      (No hay columnas POS-LM en el dataset)")
 
-    # Combinar todas las features disponibles
     all_feat_cols = base_feat_cols + poslm_feat_cols
 
-    # ============ NUEVO: EXCLUIR FEATURES ============
+    # ============ EXCLUIR FEATURES ============
     features_to_exclude = set()
     
-    # 1. Excluir features vacías automáticamente
     if args.exclude_empty:
-        log.info("\n🔍 Detectando features vacías...")
+        log.info("\n Detectando features vacías...")
         X_temp = df[all_feat_cols].values
         empty_mask = np.isnan(X_temp).all(axis=0)
         empty_features = [all_feat_cols[i] for i, is_empty in enumerate(empty_mask) if is_empty]
@@ -955,25 +1107,20 @@ def main():
         else:
             log.info("   ✓ No se encontraron features vacías")
     
-    # 2. Excluir features especificadas manualmente
     if args.exclude_features:
-        log.info("\n🔍 Procesando exclusiones manuales...")
+        log.info("\n Procesando exclusiones manuales...")
         
-        # Verificar si es un archivo o una lista
         if ',' in args.exclude_features or not os.path.exists(args.exclude_features):
-            # Lista separada por comas
             manual_exclude = [f.strip() for f in args.exclude_features.split(',')]
             log.info(f"   Desde argumentos: {len(manual_exclude)} features")
         else:
-            # Archivo
             with open(args.exclude_features, 'r') as f:
                 manual_exclude = [line.strip() for line in f if line.strip() and not line.startswith('#')]
             log.info(f"   Desde archivo '{args.exclude_features}': {len(manual_exclude)} features")
         
-        # Validar que existen
         invalid = [f for f in manual_exclude if f not in all_feat_cols]
         if invalid:
-            log.warning(f"   ⚠️  {len(invalid)} features no encontradas en el dataset:")
+            log.warning(f"     {len(invalid)} features no encontradas en el dataset:")
             for feat in invalid[:5]:
                 log.warning(f"       - {feat}")
             if len(invalid) > 5:
@@ -984,17 +1131,15 @@ def main():
             log.info(f"   ✓ {len(valid_exclude)} features válidas para excluir")
             features_to_exclude.update(valid_exclude)
     
-    # 3. Aplicar exclusiones
     if features_to_exclude:
         all_feat_cols_original = all_feat_cols.copy()
         all_feat_cols = [f for f in all_feat_cols if f not in features_to_exclude]
         
-        log.info(f"\n📊 RESUMEN DE EXCLUSIONES:")
+        log.info("\n RESUMEN DE EXCLUSIONES:")
         log.info(f"   Features originales: {len(all_feat_cols_original)}")
         log.info(f"   Features excluidas:  {len(features_to_exclude)}")
         log.info(f"   Features finales:    {len(all_feat_cols)}")
         
-        # Guardar lista de exclusiones
         exclude_file = run_dir / "excluded_features.txt"
         with open(exclude_file, "w") as f:
             f.write("FEATURES EXCLUIDAS\n")
@@ -1003,9 +1148,8 @@ def main():
             for feat in sorted(features_to_exclude):
                 f.write(f"  - {feat}\n")
         log.info(f"   Lista guardada: {exclude_file.name}")
-    # =================================================
+    # ===========================================
 
-    # Aplicar selección de features
     if args.features == 'simple':
         simple_base = [
             'den_words_per_min', 'den_phones_per_min', 'den_W', 'den_OCW',
@@ -1047,12 +1191,13 @@ def main():
             X_all = np.vstack([X_pwa_en_all, X_control_all])
             y_all = np.concatenate([y_pwa_en_all, y_control_all])
         else:
+            X_control_all = None
             X_all = X_pwa_en_all
             y_all = y_pwa_en_all
         
-        selected_idx, feat_cols = perform_sfs(X_all, y_all, all_feat_cols, run_dir, log)
+        selected_idx, feat_cols = perform_sfs(X_all, y_all, all_feat_cols, run_dir, log, 
+                                              args.znorm_controls, X_control_all)
 
-    # Contar por grupo
     den_cols = [f for f in feat_cols if f.startswith('den_')]
     dys_cols = [f for f in feat_cols if f.startswith('dys_')]
     lex_cols = [f for f in feat_cols if f.startswith('lex_')]
@@ -1065,7 +1210,6 @@ def main():
     log.info(f"  POSLM: {len(poslm_cols)}")
     log.info(f"  TOTAL: {len(feat_cols)}")
 
-    # Guardar lista de features
     with open(run_dir / "FEATURES.txt", "w", encoding="utf-8") as f:
         f.write(f"FEATURES ({args.features.upper()})\n")
         f.write("="*70 + "\n")
@@ -1100,57 +1244,184 @@ def main():
         X_control = None
         y_control = None
     
-    # ==================== MODELO ====================
-    pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-        ("svr", SVR())
-    ])
-    
+    # ==================== PARAM GRID ====================
+    # param_grid = {
+    #     "C": [1.0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5],
+    #     "epsilon": [1.0, 1e-1, 1e-2, 1e-3],
+    #     "kernel": ["rbf", "linear"],
+    #     "shrinking": [True, False],
+    #     "gamma": ["scale"],
+    # }
+
     param_grid = {
-        "svr__C": [0.1, 1, 10, 100, 1000],
-        "svr__epsilon": [0.01, 0.1, 1, 5, 10],
-        "svr__kernel": ["rbf"],
-        "svr__gamma": ["scale", "auto"],
+    "C": [0.1, 1, 10, 100, 1000],
+    "epsilon": [0.01, 0.1, 1, 5, 10],
+    "kernel": ["rbf"],
+    "shrinking": [True],
+    "gamma": ["scale", "auto"],
     }
-    
+
     # ==================== CV EN INGLÉS ====================
     log.info("\n" + "="*70)
-    if 'subsets_pwa_en' in locals() and subsets_pwa_en is not None:
+    if subsets_pwa_en is not None:
         log.info("CROSS-VALIDATION (EN) - StratifiedGroupKFold por sub-dataset")
+        log.info("  * Cada fold tiene 25% de pacientes de CADA sub-dataset")
         cv_splitter = StratifiedGroupKFold(n_splits=4, shuffle=True, random_state=42)
         split_generator = cv_splitter.split(X_pwa_en, subsets_pwa_en, groups=groups_pwa_en)
     else:
-        log.info("CROSS-VALIDATION (EN) - GroupKFold por paciente (sin estratificación por sub-dataset)")
+        log.info("CROSS-VALIDATION (EN) - GroupKFold por paciente")
+        log.warning("  * No se encontró columna de sub-dataset, usando GroupKFold estándar")
         cv_splitter = GroupKFold(n_splits=4)
         split_generator = cv_splitter.split(X_pwa_en, y_pwa_en, groups=groups_pwa_en)
+    
+    if args.znorm_controls:
+        log.info("Normalización: Z-norm con stats de controles (Le et al. 2018)")
+    else:
+        log.info("Normalización: StandardScaler (sklearn default)")
+    
     log.info("="*70)
     
     cv_results = []
     cv_preds = np.zeros_like(y_pwa_en, dtype=float)
     
+    # Lista para guardar stats de cada fold (solo si znorm_controls)
+    fold_stats = []
+    
+    # Lista para guardar distribución de sub-datasets por fold
+    subdataset_distributions = []
+    
     for fold_idx, (train_idx, test_idx) in enumerate(split_generator, 1):
         log.info("\n  Fold {}/4:".format(fold_idx))
         
+        # ============ LOGGING DE SUB-DATASETS POR FOLD (NUEVO) ============
+        if subsets_pwa_en is not None:
+            train_subsets = subsets_pwa_en[train_idx]
+            test_subsets = subsets_pwa_en[test_idx]
+            
+            train_dist = pd.Series(train_subsets).value_counts().to_dict()
+            test_dist = pd.Series(test_subsets).value_counts().to_dict()
+            
+            log.info("    Train sub-datasets: {}".format(train_dist))
+            log.info("    Test sub-datasets:  {}".format(test_dist))
+            
+            # Guardar para CSV
+            for subset in np.unique(subsets_pwa_en):
+                subdataset_distributions.append({
+                    'fold': fold_idx,
+                    'split': 'train',
+                    'subdataset': subset,
+                    'count': train_dist.get(subset, 0)
+                })
+                subdataset_distributions.append({
+                    'fold': fold_idx,
+                    'split': 'test',
+                    'subdataset': subset,
+                    'count': test_dist.get(subset, 0)
+                })
+        # ==================================================================
+        # ============ PREPARAR DATOS DEL FOLD ============
         if X_control is not None and len(X_control) > 0:
-            X_train_fold = np.vstack([X_pwa_en[train_idx], X_control])
+            X_train_fold_raw = np.vstack([X_pwa_en[train_idx], X_control])
             y_train_fold = np.concatenate([y_pwa_en[train_idx], y_control])
+            n_control_fold = len(X_control)
         else:
-            X_train_fold = X_pwa_en[train_idx]
+            X_train_fold_raw = X_pwa_en[train_idx]
             y_train_fold = y_pwa_en[train_idx]
+            n_control_fold = 0
         
-        gs_fold = GridSearchCV(pipe, param_grid, cv=5, scoring="neg_mean_absolute_error", n_jobs=-1, verbose=0)
-        gs_fold.fit(X_train_fold, y_train_fold)
-        cv_preds[test_idx] = gs_fold.predict(X_pwa_en[test_idx])
+        X_test_fold_raw = X_pwa_en[test_idx]
+        y_test_fold = y_pwa_en[test_idx]
         
-        mae_fold = mean_absolute_error(y_pwa_en[test_idx], cv_preds[test_idx])
+        # ============ IMPUTAR ============
+        imputer = SimpleImputer(strategy="median")
+        X_train_fold_imputed = imputer.fit_transform(X_train_fold_raw)
+        X_test_fold_imputed = imputer.transform(X_test_fold_raw)
+        
+        # ============ NORMALIZAR ============
+        if args.znorm_controls and n_control_fold > 0:
+            # Separar controles DESPUÉS de imputar
+            X_control_fold = X_train_fold_imputed[-n_control_fold:]
+            
+            # Calcular stats SOLO de controles
+            mean_fold, std_fold = compute_control_stats(X_control_fold)
+            
+            # Guardar stats para referencia
+            fold_stats.append({
+                'fold': fold_idx,
+                'mean_control': mean_fold,
+                'std_control': std_fold
+            })
+            
+            # Normalizar con stats de controles
+            X_train_fold_norm = apply_znorm(X_train_fold_imputed, mean_fold, std_fold)
+            X_test_fold_norm = apply_znorm(X_test_fold_imputed, mean_fold, std_fold)
+            
+        else:
+            # StandardScaler normal
+            scaler = StandardScaler()
+            X_train_fold_norm = scaler.fit_transform(X_train_fold_imputed)
+            X_test_fold_norm = scaler.transform(X_test_fold_imputed)
+        
+        # ============ GRIDSEARCH (solo optimiza SVR) ============
+        svr = SVR()
+        gs_fold = GridSearchCV(
+            svr,
+            param_grid,
+            cv=args.cv_inner,
+            scoring="neg_mean_absolute_error",
+            n_jobs=-1,
+            verbose=0
+        )
+        
+        gs_fold.fit(X_train_fold_norm, y_train_fold)
+        
+        # Predicciones
+        cv_preds[test_idx] = gs_fold.predict(X_test_fold_norm)
+        
+        mae_fold = mean_absolute_error(y_test_fold, cv_preds[test_idx])
         log.info("    MAE: {:.3f}".format(mae_fold))
+        log.info("    Best params: C={}, epsilon={}, kernel={}".format(
+            gs_fold.best_params_['C'],
+            gs_fold.best_params_['epsilon'],
+            gs_fold.best_params_['kernel']
+        ))
         
-        cv_results.append({'fold': fold_idx, 'mae': mae_fold})
+        cv_results.append({
+            'fold': fold_idx,
+            'mae': mae_fold,
+            'best_C': gs_fold.best_params_['C'],
+            'best_epsilon': gs_fold.best_params_['epsilon'],
+            'best_kernel': gs_fold.best_params_['kernel']
+        })
     
     pd.DataFrame(cv_results).to_csv(run_dir / "cv_results_by_fold.csv", index=False)
     
-    evaluate_split(
+    # Guardar distribución de sub-datasets por fold
+    if subdataset_distributions:
+        pd.DataFrame(subdataset_distributions).to_csv(run_dir / "subdataset_distribution.csv", index=False)
+        log.info("\nDistribución de sub-datasets guardada: subdataset_distribution.csv")
+    
+    # Guardar stats de normalización por fold (si se usó znorm_controls)
+    if args.znorm_controls and fold_stats:
+        # Guardar mean/std de cada fold
+        stats_df_list = []
+        for stat_dict in fold_stats:
+            fold_num = stat_dict['fold']
+            mean_arr = stat_dict['mean_control']
+            std_arr = stat_dict['std_control']
+            
+            for i, feat_name in enumerate(feat_cols):
+                stats_df_list.append({
+                    'fold': fold_num,
+                    'feature': feat_name,
+                    'mean_control': mean_arr[i],
+                    'std_control': std_arr[i]
+                })
+        
+        pd.DataFrame(stats_df_list).to_csv(run_dir / "znorm_stats_by_fold.csv", index=False)
+        log.info("\nStats de z-norm guardadas: znorm_stats_by_fold.csv")
+    
+    metrics_cv_cont, metrics_cv_acc, metrics_cv_sev = evaluate_split(
         y_pwa_en, cv_preds, "CV_PWA", run_dir, log,
         df_ids=df_en[['patient_id']] if 'patient_id' in df_en.columns else None
     )
@@ -1165,7 +1436,7 @@ def main():
     joblib.dump(calibrator, run_dir / "calibrator.pkl")
     
     cv_preds_cal = calibrator.predict(cv_preds)
-    evaluate_split(
+    metrics_cv_cal_cont, metrics_cv_cal_acc, metrics_cv_cal_sev = evaluate_split(
         y_pwa_en, cv_preds_cal, "CV_PWA_CALIBRATED", run_dir, log,
         df_ids=df_en[['patient_id']] if 'patient_id' in df_en.columns else None
     )
@@ -1196,19 +1467,72 @@ def main():
     log.info("="*70)
     
     if X_control is not None and len(X_control) > 0:
-        X_final = np.vstack([X_pwa_en, X_control])
+        X_final_raw = np.vstack([X_pwa_en, X_control])
         y_final = np.concatenate([y_pwa_en, y_control])
+        n_control_final = len(X_control)
         log.info("Entrenando con: {} PWA EN + {} Control".format(len(X_pwa_en), len(X_control)))
     else:
-        X_final = X_pwa_en
+        X_final_raw = X_pwa_en
         y_final = y_pwa_en
+        n_control_final = 0
         log.info("Entrenando con: {} PWA EN".format(len(X_pwa_en)))
     
-    gs_final = GridSearchCV(pipe, param_grid, cv=5, scoring="neg_mean_absolute_error", n_jobs=-1, verbose=0)
-    gs_final.fit(X_final, y_final)
+    # Imputar
+    imputer_final = SimpleImputer(strategy="median")
+    X_final_imputed = imputer_final.fit_transform(X_final_raw)
     
-    best_model = gs_final.best_estimator_
-    joblib.dump(best_model, run_dir / "model_final.pkl")
+    # Normalizar
+    if args.znorm_controls and n_control_final > 0:
+        X_control_final = X_final_imputed[-n_control_final:]
+        mean_final, std_final = compute_control_stats(X_control_final)
+        X_final_norm = apply_znorm(X_final_imputed, mean_final, std_final)
+        
+        # Guardar stats del modelo final
+        final_stats_df = pd.DataFrame({
+            'feature': feat_cols,
+            'mean_control': mean_final,
+            'std_control': std_final
+        })
+        final_stats_df.to_csv(run_dir / "znorm_stats_final_model.csv", index=False)
+        log.info("Stats de z-norm del modelo final guardadas: znorm_stats_final_model.csv")
+    else:
+        scaler_final = StandardScaler()
+        X_final_norm = scaler_final.fit_transform(X_final_imputed)
+    
+    # GridSearch
+    svr_final = SVR()
+    gs_final = GridSearchCV(
+        svr_final,
+        param_grid,
+        cv=args.cv_inner,
+        scoring="neg_mean_absolute_error",
+        n_jobs=-1,
+        verbose=0
+    )
+    
+    gs_final.fit(X_final_norm, y_final)
+    
+    # Guardar modelo final (necesitamos reconstruir el pipeline completo)
+    if args.znorm_controls and n_control_final > 0:
+        # Crear un "modelo" que incluya imputer, znorm y svr
+        final_model_dict = {
+            'imputer': imputer_final,
+            'znorm_mean': mean_final,
+            'znorm_std': std_final,
+            'svr': gs_final.best_estimator_,
+            'feature_names': feat_cols,
+            'znorm_type': 'controls'
+        }
+    else:
+        final_model_dict = {
+            'imputer': imputer_final,
+            'scaler': scaler_final,
+            'svr': gs_final.best_estimator_,
+            'feature_names': feat_cols,
+            'znorm_type': 'standard'
+        }
+    
+    joblib.dump(final_model_dict, run_dir / "model_final.pkl")
     pd.DataFrame(gs_final.cv_results_).to_csv(run_dir / "cv_results_full.csv", index=False)
     
     log.info("Mejores parámetros:")
@@ -1220,21 +1544,51 @@ def main():
     log.info("INTERPRETABILIDAD")
     log.info("="*70)
     
+    # Para interpretabilidad, necesitamos un "modelo" que tome X_norm
+    # Vamos a crear un wrapper simple
+    class ModelWrapper:
+        def __init__(self, svr_model):
+            self.svr = svr_model
+        
+        def fit(self, X, y):
+            # No hace nada, el modelo ya está entrenado
+            return self
+        
+        def predict(self, X):
+            return self.svr.predict(X)
+        
+        def score(self, X, y):
+            # Para compatibilidad con sklearn
+            from sklearn.metrics import r2_score
+            return r2_score(y, self.predict(X))
+        
+        def score(self, X, y):
+            # Para compatibilidad con sklearn
+            from sklearn.metrics import r2_score
+            return r2_score(y, self.predict(X))
+    
+    # Usamos los datos normalizados del modelo final
+    model_wrapper = ModelWrapper(gs_final.best_estimator_)
+    
     perm_importance = compute_feature_importance_permutation(
-        best_model, X_pwa_en, y_pwa_en, feat_cols, run_dir, log, n_repeats=10
+        model_wrapper, X_final_norm, y_final, feat_cols, run_dir, log, n_repeats=10
     )
     
     analyze_feature_groups(perm_importance, run_dir, log, method_name="Permutation")
     
     if SHAP_AVAILABLE:
         try:
-            n_test_shap = min(100, max(int(len(X_pwa_en) * 0.2), 20))
-            X_train_shap = X_pwa_en[:-n_test_shap]
-            X_test_shap = X_pwa_en[-n_test_shap:]
+            # Usar una muestra para SHAP (es muy lento)
+            n_samples_shap = min(100, len(X_final_norm))
+            np.random.seed(42)
+            sample_idx = np.random.choice(len(X_final_norm), n_samples_shap, replace=False)
+            
+            X_train_shap = X_final_norm[:int(0.8*n_samples_shap)]
+            X_test_shap = X_final_norm[int(0.8*n_samples_shap):n_samples_shap]
             
             shap_importance = compute_shap_values(
-                best_model, X_train_shap, X_test_shap,
-                feat_cols, run_dir, log, max_samples=100
+                model_wrapper, X_train_shap, X_test_shap,
+                feat_cols, run_dir, log, max_samples=50
             )
             
             if shap_importance is not None:
@@ -1243,27 +1597,41 @@ def main():
             log.warning("Error en SHAP: {}".format(e))
     
     # ==================== EVALUACIÓN ESPAÑOL ====================
+    metrics_es = None
     if len(df_es) > 0:
         log.info("\n" + "="*70)
         log.info("EVALUACION ESPAÑOL")
         log.info("="*70)
         
-        X_es = df_es[feat_cols].values
+        X_es_raw = df_es[feat_cols].values
         y_es = df_es['QA'].values
         
         log.info("Evaluando {} pacientes españoles...".format(len(df_es)))
         
-        preds_es = best_model.predict(X_es)
-        evaluate_split(
+        # Pre-procesar igual que en entrenamiento
+        X_es_imputed = imputer_final.transform(X_es_raw)
+        
+        if args.znorm_controls and n_control_final > 0:
+            X_es_norm = apply_znorm(X_es_imputed, mean_final, std_final)
+        else:
+            X_es_norm = scaler_final.transform(X_es_imputed)
+        
+        preds_es = gs_final.best_estimator_.predict(X_es_norm)
+        metrics_es_raw_cont, metrics_es_raw_acc, metrics_es_raw_sev = evaluate_split(
             y_es, preds_es, "EVAL_ES_RAW", run_dir, log,
             df_ids=df_es[['patient_id']] if 'patient_id' in df_es.columns else None
         )
         
         preds_es_cal = calibrator.predict(preds_es)
-        evaluate_split(
+        metrics_es_cal_cont, metrics_es_cal_acc, metrics_es_cal_sev = evaluate_split(
             y_es, preds_es_cal, "EVAL_ES_CALIBRATED", run_dir, log,
             df_ids=df_es[['patient_id']] if 'patient_id' in df_es.columns else None
         )
+        
+        metrics_es = {
+            "raw_mae": metrics_es_raw_cont["MAE"],
+            "cal_mae": metrics_es_cal_cont["MAE"],
+        }
     else:
         log.info("\n" + "="*70)
         log.info("EVALUACION ESPAÑOL")
@@ -1271,27 +1639,41 @@ def main():
         log.info("No hay datos en español para evaluar")
     
     # ==================== EVALUACIÓN CATALÁN ====================
+    metrics_ca = None
     if len(df_ca) > 0:
         log.info("\n" + "="*70)
         log.info("EVALUACION CATALÁN")
         log.info("="*70)
         
-        X_ca = df_ca[feat_cols].values
+        X_ca_raw = df_ca[feat_cols].values
         y_ca = df_ca['QA'].values
         
         log.info("Evaluando {} pacientes catalanes...".format(len(df_ca)))
         
-        preds_ca = best_model.predict(X_ca)
-        evaluate_split(
+        # Pre-procesar igual que en entrenamiento
+        X_ca_imputed = imputer_final.transform(X_ca_raw)
+        
+        if args.znorm_controls and n_control_final > 0:
+            X_ca_norm = apply_znorm(X_ca_imputed, mean_final, std_final)
+        else:
+            X_ca_norm = scaler_final.transform(X_ca_imputed)
+        
+        preds_ca = gs_final.best_estimator_.predict(X_ca_norm)
+        metrics_ca_raw_cont, metrics_ca_raw_acc, metrics_ca_raw_sev = evaluate_split(
             y_ca, preds_ca, "EVAL_CA_RAW", run_dir, log,
             df_ids=df_ca[['patient_id']] if 'patient_id' in df_ca.columns else None
         )
         
         preds_ca_cal = calibrator.predict(preds_ca)
-        evaluate_split(
+        metrics_ca_cal_cont, metrics_ca_cal_acc, metrics_ca_cal_sev = evaluate_split(
             y_ca, preds_ca_cal, "EVAL_CA_CALIBRATED", run_dir, log,
             df_ids=df_ca[['patient_id']] if 'patient_id' in df_ca.columns else None
         )
+        
+        metrics_ca = {
+            "raw_mae": metrics_ca_raw_cont["MAE"],
+            "cal_mae": metrics_ca_cal_cont["MAE"],
+        }
     else:
         log.info("\n" + "="*70)
         log.info("EVALUACION CATALÁN")
@@ -1309,6 +1691,8 @@ def main():
         log.info("  - Exclusiones: excluded_features.txt")
     log.info("  - Modelo: model_final.pkl")
     log.info("  - Calibrador: calibrator.pkl")
+    if args.znorm_controls:
+        log.info("  - Stats z-norm: znorm_stats_by_fold.csv, znorm_stats_final_model.csv")
     log.info("  - CV inglés: CV_PWA_*.csv/png")
     log.info("  - CV calibrado: CV_PWA_CALIBRATED_*.csv/png")
     if len(df_es) > 0:
@@ -1321,6 +1705,34 @@ def main():
     else:
         log.info("  - SHAP: NO DISPONIBLE (instalar con: pip install shap)")
     log.info("  - Análisis de error: error_histogram.png, error_groups_analysis.csv")
+    
+    # ==================== LOGGER DE EXPERIMENTOS ====================
+    log.info("\n" + "="*70)
+    log.info("REGISTRANDO EXPERIMENTO EN EXPERIMENT_LOGGER")
+    log.info("="*70)
+    
+    metrics_cv_all = metrics_cv_cont.copy()
+    metrics_cv_all["severity_accuracy"] = metrics_cv_sev["severity_accuracy"]
+    
+    metrics_cv_cal_all = metrics_cv_cal_cont.copy()
+    metrics_cv_cal_all["severity_accuracy"] = metrics_cv_cal_sev["severity_accuracy"]
+    
+    exp_config = create_experiment_config(args, param_grid, df_info, feat_cols)
+    exp_config["znorm_controls"] = args.znorm_controls
+    exp_config["stratified_cv"] = True
+    
+    exp_results = create_experiment_results(
+        metrics_cv_all,
+        metrics_cv_cal_all,
+        metrics_es=metrics_es,
+        metrics_ca=metrics_ca,
+        best_params=gs_final.best_params_
+    )
+    
+    exp_logger = ExperimentLogger(log_dir=RESULTS_BASE)
+    exp_logger.log_experiment(exp_config, exp_results, run_dir=str(run_dir))
+    
+    log.info("Experimento registrado en experiments_history.csv/json")
     
     # ==================== COMPARACIÓN CON EL PAPER ====================
     log.info("\n" + "="*70)
@@ -1348,7 +1760,7 @@ def main():
             diff_corr,
             "mejor" if diff_corr > 0 else "peor" if diff_corr < 0 else "igual"
         ))
-    except:
+    except Exception:
         log.info("  [Error leyendo métricas]")
 
 if __name__ == "__main__":

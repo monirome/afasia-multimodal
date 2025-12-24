@@ -231,19 +231,19 @@ Diferencias frente al paper:
 
 ## 3. Features 
 
-He implementado 65 features en total, centradas en DEN, DYS y una parte mínima de LEX.
-
 ### Cobertura frente al paper
 
-| Grupo   | Nº features implementadas | Cobertura frente al paper |
-|---------|--------------------------:|----------------------------|
-| DEN     | 42                       | 100 % (42/42)              |
-| DYS     | 22                       | 100 % (22/22)              |
-| LEX     | 1                        | 1.5 % (1/66)               |
-| POS-LM  | 0                        | 0 % (0/26)                 |
-| PVE     | 0                        | 0 % (0/52)                 |
-| DTW     | 0                        | 0 % (0/39)                 |
-| **Total** | **65**                  | **50 % (65/130)**          |
+En la versión actual del dataset tengo **125 features lingüísticas** implementadas:
+
+| Grupo   | Variables Paper | Variables Implementadas | Cobertura |
+|---------|---------------:|------------------------:|----------:|
+| DEN     | 42             | 42                      | 100%      |
+| DYS     | 22             | 22                      | 100%      |
+| LEX     | 66             | 1                       | 1.5%      |
+| POS-LM  | 26             | 60                      | 231%      |
+| PVE     | 52             | 0                       | 0%        |
+| DTW     | 39             | 0                       | 0%        |
+| **TOTAL** | **247**      | **125**                 | **51%**   |
 
 ### Detalle de grupos implementados
 
