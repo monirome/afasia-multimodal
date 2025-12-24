@@ -1,0 +1,51 @@
+/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/job_venv/lib64/python3.9/site-packages/networkx/utils/backends.py:135: RuntimeWarning: networkx backend defined more than once: nx-loopback
+  backends.update(_get_backends("networkx.backends"))
+/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/job_venv/lib64/python3.9/site-packages/tabpfn/regressor.py:637: UserWarning: Running on CPU with more than 200 samples may be slow.
+Consider using a GPU or the tabpfn-client API: https://github.com/PriorLabs/tabpfn-client
+  check_cpu_warning(
+/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/job_venv/lib64/python3.9/site-packages/tabpfn/regressor.py:637: UserWarning: Running on CPU with more than 200 samples may be slow.
+Consider using a GPU or the tabpfn-client API: https://github.com/PriorLabs/tabpfn-client
+  check_cpu_warning(
+/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/job_venv/lib64/python3.9/site-packages/tabpfn/regressor.py:637: UserWarning: Running on CPU with more than 200 samples may be slow.
+Consider using a GPU or the tabpfn-client API: https://github.com/PriorLabs/tabpfn-client
+  check_cpu_warning(
+/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/job_venv/lib64/python3.9/site-packages/tabpfn/regressor.py:637: UserWarning: Running on CPU with more than 200 samples may be slow.
+Consider using a GPU or the tabpfn-client API: https://github.com/PriorLabs/tabpfn-client
+  check_cpu_warning(
+/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/job_venv/lib64/python3.9/site-packages/tabpfn/regressor.py:637: UserWarning: Running on CPU with more than 200 samples may be slow.
+Consider using a GPU or the tabpfn-client API: https://github.com/PriorLabs/tabpfn-client
+  check_cpu_warning(
+/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/run_final_ensemble.py:90: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  mae_lang = df_results.groupby('language').apply(
+/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/run_final_ensemble.py:94: FutureWarning: 
+
+Passing `palette` without assigning `hue` is deprecated and will be removed in v0.14.0. Assign the `x` variable to `hue` and set `legend=False` for the same effect.
+
+  sns.barplot(data=mae_lang, x='language', y='MAE', palette='viridis')
+ MAE Fold 4: 8.502
+  Calculando importancia de variables (esto puede tardar)...
+
+[INFO] PROCESANDO FOLD 5/5...
+  Entrenando TabPFN... /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/job_venv/lib64/python3.9/site-packages/tabpfn/regressor.py:637: UserWarning: Running on CPU with more than 200 samples may be slow.
+Consider using a GPU or the tabpfn-client API: https://github.com/PriorLabs/tabpfn-client
+  check_cpu_warning(
+OK
+  Entrenando EBM... OK
+  Entrenando CatBoost... OK
+  [RESULT] MAE Fold 5: 9.681
+  Calculando importancia de variables (esto puede tardar)...
+
+======================================================================
+   Generando graficas...
+/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/run_final_ensemble.py:90: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  mae_lang = df_results.groupby('language').apply(
+/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/run_final_ensemble.py:94: FutureWarning: 
+
+Passing `palette` without assigning `hue` is deprecated and will be removed in v0.14.0. Assign the `x` variable to `hue` and set `legend=False` for the same effect.
+
+  sns.barplot(data=mae_lang, x='language', y='MAE', palette='viridis')
+RESULTADO FINAL (5-FOLD CV):
+  MAE REAL:         9.9389
+  CORRELACION REAL: 0.8396
+======================================================================
+Archivos guardados en: outputs/experiments/ENSEMBLE_FINAL/VALIDACION_REAL

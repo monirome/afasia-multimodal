@@ -1,0 +1,8 @@
+{
+  "model": "tabpfn",
+  "hpo_method": "gridsearch",
+  "best_params": {},
+  "best_score_mae": 14.737063199008565,
+  "optimized_at": "2025-12-22 15:09:39",
+  "n_combinations_tested": 1
+}

@@ -1,0 +1,27 @@
+======================================================================
+CONFIGURACIÓN DEL EXPERIMENTO
+======================================================================
+
+Nombre:          SFS_POSLM-BACKOFF_ZNORM-STD_STRATIFIED
+Fecha/hora:      20251210_225009
+Features:        sfs
+POS-LM method:   backoff
+CV inner folds:  5
+Z-norm controls: False
+Stratified CV:   True (25% de cada sub-dataset)
+Exclude empty:   False
+Notas:           Replicacion experimento 20251205_162222_SFS_POSLM-BACKOFF
+Dataset:         /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/data/dataset_FINAL_CON_POSLM.csv
+Output dir:      /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_svr/SVR_20251210_225009_SFS_POSLM-BACKOFF_ZNORM-STD_STRATIFIED
+SHAP:            Disponible
+
+======================================================================
+COMANDO PARA REPLICAR:
+======================================================================
+python3 05_models/train_svr_COMPLETO_FINAL.py \
+    --features sfs \
+    --poslm-method backoff \
+    --cv-inner 5 \
+    --notes "Replicacion experimento 20251205_162222_SFS_POSLM-BACKOFF"
+
+======================================================================

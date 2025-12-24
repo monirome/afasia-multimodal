@@ -1,0 +1,19 @@
+{
+  "timestamp": "20251220_230201",
+  "model_type": "catboost",
+  "config_name": "FULL_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_OPTUNA-50",
+  "features": "full",
+  "poslm_method": "backoff",
+  "hpo_method": "optuna",
+  "optuna_trials": 50,
+  "cv_inner": 3,
+  "znorm_controls": false,
+  "stratified_cv": true,
+  "exclude_empty": false,
+  "exclude_features": null,
+  "output_dir": "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_modelos/CATBOOST_20251220_230201_FULL_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_OPTUNA-50",
+  "dataset": "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/data/dataset_FINAL_CON_POSLM.csv",
+  "shap_available": true,
+  "optuna_available": true,
+  "notes": "CATBOOST_FULL_OPTUNA_POSLM"
+}

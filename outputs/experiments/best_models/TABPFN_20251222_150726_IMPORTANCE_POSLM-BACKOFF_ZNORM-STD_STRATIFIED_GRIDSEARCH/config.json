@@ -1,0 +1,19 @@
+{
+  "timestamp": "20251222_150726",
+  "model_type": "tabpfn",
+  "config_name": "IMPORTANCE_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_GRIDSEARCH",
+  "features": "importance",
+  "poslm_method": "backoff",
+  "hpo_method": "gridsearch",
+  "optuna_trials": null,
+  "cv_inner": 5,
+  "znorm_controls": false,
+  "stratified_cv": true,
+  "exclude_empty": false,
+  "exclude_features": null,
+  "output_dir": "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_modelos/TABPFN_20251222_150726_IMPORTANCE_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_GRIDSEARCH",
+  "dataset": "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/data/dataset_FINAL_CON_POSLM.csv",
+  "shap_available": true,
+  "optuna_available": true,
+  "notes": "TabPFN_Foundation_Model_Importance"
+}

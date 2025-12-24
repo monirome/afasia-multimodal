@@ -1,0 +1,51 @@
+FEATURES (IMPORTANCE)
+======================================================================
+Total: 40
+
+DEN (15):
+  - den_determiners
+  - den_function_words
+  - den_noun_ratio
+  - den_nouns
+  - den_phones_per_min
+  - den_phones_utt_mean
+  - den_phones_utt_q3
+  - den_phones_utt_std
+  - den_prepositions
+  - den_pronoun_ratio
+  - den_verbs
+  - den_words_per_min
+  - den_words_utt_mean
+  - den_words_utt_q3
+  - den_words_utt_std
+
+DYS (4):
+  - dys_fillers_per_min
+  - dys_fillers_per_phone
+  - dys_fillers_per_word
+  - dys_pauses_per_min
+
+LEX (1):
+  - lex_phones_max
+
+POSLM (20):
+  - poslm_bo_bigram_ce_max
+  - poslm_bo_bigram_ce_mean
+  - poslm_bo_bigram_ce_median
+  - poslm_bo_bigram_ce_min
+  - poslm_bo_bigram_ce_p1
+  - poslm_bo_bigram_ce_p99
+  - poslm_bo_bigram_ce_q1
+  - poslm_bo_bigram_ce_q3
+  - poslm_bo_bigram_ppl_mean
+  - poslm_bo_bigram_ppl_median
+  - poslm_bo_trigram_ce_max
+  - poslm_bo_trigram_ce_mean
+  - poslm_bo_trigram_ce_median
+  - poslm_bo_trigram_ce_min
+  - poslm_bo_trigram_ce_p1
+  - poslm_bo_trigram_ce_p99
+  - poslm_bo_trigram_ce_q1
+  - poslm_bo_trigram_ce_q3
+  - poslm_bo_trigram_ppl_mean
+  - poslm_bo_trigram_ppl_median

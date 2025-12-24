@@ -1,0 +1,32 @@
+======================================================================
+CONFIGURACIÓN DEL EXPERIMENTO
+======================================================================
+
+Nombre:          FULL_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_GRIDSEARCH
+Fecha/hora:      20251222_205211
+Modelo:          EBM
+Features:        full
+POS-LM method:   backoff
+HPO method:      gridsearch
+CV inner folds:  3
+Z-norm controls: False
+Stratified CV:   True
+Exclude empty:   False
+Notas:           EBM_Glassbox_Test
+Dataset:         /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/data/dataset_FINAL_CON_POSLM.csv
+Output dir:      /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_modelos/EBM_20251222_205211_FULL_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_GRIDSEARCH
+SHAP:            Disponible
+Optuna:          Disponible
+
+======================================================================
+COMANDO PARA REPLICAR:
+======================================================================
+python3 05_models/train_model_UNIVERSAL.py \
+    --model ebm \
+    --features full \
+    --poslm-method backoff \
+    --hpo-method gridsearch \
+    --cv-inner 3 \
+    --notes "EBM_Glassbox_Test"
+
+======================================================================

@@ -1,0 +1,32 @@
+======================================================================
+CONFIGURACIÓN DEL EXPERIMENTO
+======================================================================
+
+Nombre:          IMPORTANCE_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_GRIDSEARCH
+Fecha/hora:      20251222_150726
+Modelo:          TABPFN
+Features:        importance
+POS-LM method:   backoff
+HPO method:      gridsearch
+CV inner folds:  5
+Z-norm controls: False
+Stratified CV:   True
+Exclude empty:   False
+Notas:           TabPFN_Foundation_Model_Importance
+Dataset:         /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/data/dataset_FINAL_CON_POSLM.csv
+Output dir:      /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_modelos/TABPFN_20251222_150726_IMPORTANCE_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_GRIDSEARCH
+SHAP:            Disponible
+Optuna:          Disponible
+
+======================================================================
+COMANDO PARA REPLICAR:
+======================================================================
+python3 05_models/train_model_UNIVERSAL.py \
+    --model tabpfn \
+    --features importance \
+    --poslm-method backoff \
+    --hpo-method gridsearch \
+    --cv-inner 5 \
+    --notes "TabPFN_Foundation_Model_Importance"
+
+======================================================================

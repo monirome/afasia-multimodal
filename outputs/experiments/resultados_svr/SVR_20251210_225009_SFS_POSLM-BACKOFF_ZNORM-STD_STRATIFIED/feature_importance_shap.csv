@@ -1,0 +1,17 @@
+feature,importance
+lex_phones_std,4.186772760660337
+dys_fillers_per_phone,3.3559720519359666
+lex_ttr,2.2343423539659044
+den_determiners,1.8171727380265978
+lex_phones_skew,1.519774330186023
+dys_long_pauses_per_min,1.3930837042433315
+dys_pauses_per_min,1.286539013881277
+poslm_bo_bigram_ppl_median,1.1671710811721834
+poslm_bo_bigram_ppl_mean,1.1510184579179772
+dys_short_pauses_per_min,1.0745018450679384
+poslm_bo_trigram_ppl_mean,1.0606459727503847
+poslm_bo_trigram_ppl_median,0.9511751093627601
+dys_long_pauses_per_word,0.7192843037464254
+den_OCW,0.3998149748786095
+den_demonstratives,0.0
+den_nouns_per_verb,0.0

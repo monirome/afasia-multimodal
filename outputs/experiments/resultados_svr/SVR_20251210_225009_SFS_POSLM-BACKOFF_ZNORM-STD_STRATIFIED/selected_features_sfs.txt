@@ -1,0 +1,21 @@
+FEATURES SELECCIONADAS POR SFS
+======================================================================
+Total: 16
+MAE: 13.077
+
+den_OCW
+den_demonstratives
+den_determiners
+den_nouns_per_verb
+dys_fillers_per_phone
+dys_long_pauses_per_min
+dys_long_pauses_per_word
+dys_pauses_per_min
+dys_short_pauses_per_min
+lex_phones_skew
+lex_phones_std
+lex_ttr
+poslm_bo_bigram_ppl_mean
+poslm_bo_bigram_ppl_median
+poslm_bo_trigram_ppl_mean
+poslm_bo_trigram_ppl_median

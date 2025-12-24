@@ -1,0 +1,15 @@
+{
+  "timestamp": "20251210_225009",
+  "config_name": "SFS_POSLM-BACKOFF_ZNORM-STD_STRATIFIED",
+  "features": "sfs",
+  "poslm_method": "backoff",
+  "cv_inner": 5,
+  "znorm_controls": false,
+  "stratified_cv": true,
+  "exclude_empty": false,
+  "exclude_features": null,
+  "output_dir": "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_svr/SVR_20251210_225009_SFS_POSLM-BACKOFF_ZNORM-STD_STRATIFIED",
+  "dataset": "/lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/data/dataset_FINAL_CON_POSLM.csv",
+  "shap_available": true,
+  "notes": "Replicacion experimento 20251205_162222_SFS_POSLM-BACKOFF"
+}

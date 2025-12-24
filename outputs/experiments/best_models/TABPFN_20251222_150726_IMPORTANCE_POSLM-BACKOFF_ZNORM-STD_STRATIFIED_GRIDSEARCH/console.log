@@ -1,0 +1,461 @@
+[2025-12-22 15:07:26] [INFO] ======================================================================
+[2025-12-22 15:07:26] [INFO] TABPFN TRAINING - IMPORTANCE_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_GRIDSEARCH
+[2025-12-22 15:07:26] [INFO] ======================================================================
+[2025-12-22 15:07:26] [INFO] Output: /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_modelos/TABPFN_20251222_150726_IMPORTANCE_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_GRIDSEARCH
+[2025-12-22 15:07:26] [INFO] Configuration:
+[2025-12-22 15:07:26] [INFO]   Model:             TABPFN
+[2025-12-22 15:07:26] [INFO]   Features:          importance
+[2025-12-22 15:07:26] [INFO]   POS-LM method:     backoff
+[2025-12-22 15:07:26] [INFO]   HPO method:        GRIDSEARCH
+[2025-12-22 15:07:26] [INFO]   CV inner folds:    5
+[2025-12-22 15:07:26] [INFO]   Z-norm controls:   False
+[2025-12-22 15:07:26] [INFO]   Stratified CV:     True
+[2025-12-22 15:07:26] [INFO]   Dataset:           dataset_FINAL_CON_POSLM.csv
+[2025-12-22 15:07:26] [INFO]   Exclude empty:     False
+[2025-12-22 15:07:26] [INFO]   Notes:             TabPFN_Foundation_Model_Importance
+[2025-12-22 15:07:26] [INFO]   SHAP:              disponible
+[2025-12-22 15:07:26] [INFO]   Optuna:            disponible
+[2025-12-22 15:07:26] [INFO] 
+Config guardada: CONFIG.txt, config.json
+[2025-12-22 15:07:26] [INFO] 
+======================================================================
+[2025-12-22 15:07:26] [INFO] CARGANDO DATOS
+[2025-12-22 15:07:26] [INFO] ======================================================================
+[2025-12-22 15:07:26] [INFO] Total registros: 506
+[2025-12-22 15:07:26] [INFO] 
+Pacientes ES (TCU) antes del parche:
+[2025-12-22 15:07:26] [INFO] 
+patient_id language group   QA
+    TCU02a       es   pwa 77.3
+    TCU04a       es   pwa 83.8
+    TCU06a       es   NaN 62.6
+    TCU10a       es   NaN 77.6
+[2025-12-22 15:07:26] [INFO] 
+Pacientes ES (TCU) después del parche:
+[2025-12-22 15:07:26] [INFO] 
+patient_id language group   QA
+    TCU02a       es   pwa 77.3
+    TCU04a       es   pwa 83.8
+    TCU06a       es   pwa 62.6
+    TCU10a       es   pwa 77.6
+[2025-12-22 15:07:26] [INFO] Con QA valido: 506
+[2025-12-22 15:07:26] [INFO] 
+Distribucion por idioma:
+[2025-12-22 15:07:26] [INFO]   en: 502
+[2025-12-22 15:07:26] [INFO]   es: 4
+[2025-12-22 15:07:26] [INFO] 
+======================================================================
+[2025-12-22 15:07:26] [INFO] SPLIT
+[2025-12-22 15:07:26] [INFO] ======================================================================
+[2025-12-22 15:07:26] [INFO] 
+Split:
+[2025-12-22 15:07:26] [INFO]   PWA:     423
+[2025-12-22 15:07:26] [INFO]   Control: 70
+[2025-12-22 15:07:26] [INFO] 
+Sub-datasets extraídos de patient_id:
+[2025-12-22 15:07:26] [INFO]   Total sub-datasets únicos: 26
+[2025-12-22 15:07:26] [INFO]   Sub-datasets: acwt, adler, bu, cmu, elman, fridriksson, garrett, kansas, kempler, kurland, mba, mma, msu, scale, star, tap, tcu, thompson, tucson, umd, unh, unknown, whiteside, williamson, wozniak, wright
+[2025-12-22 15:07:26] [INFO] 
+  Distribución de pacientes por sub-dataset:
+[2025-12-22 15:07:26] [INFO]     kurland: 63 pacientes
+[2025-12-22 15:07:26] [INFO]     unknown: 56 pacientes
+[2025-12-22 15:07:26] [INFO]     scale: 39 pacientes
+[2025-12-22 15:07:26] [INFO]     williamson: 23 pacientes
+[2025-12-22 15:07:26] [INFO]     tucson: 20 pacientes
+[2025-12-22 15:07:26] [INFO]     kansas: 19 pacientes
+[2025-12-22 15:07:26] [INFO]     fridriksson: 18 pacientes
+[2025-12-22 15:07:26] [INFO]     tap: 18 pacientes
+[2025-12-22 15:07:26] [INFO]     whiteside: 18 pacientes
+[2025-12-22 15:07:26] [INFO]     adler: 18 pacientes
+[2025-12-22 15:07:26] [INFO]     unh: 17 pacientes
+[2025-12-22 15:07:26] [INFO]     elman: 15 pacientes
+[2025-12-22 15:07:26] [INFO]     umd: 14 pacientes
+[2025-12-22 15:07:26] [INFO]     thompson: 14 pacientes
+[2025-12-22 15:07:26] [INFO]     msu: 13 pacientes
+[2025-12-22 15:07:26] [INFO]     mma: 13 pacientes
+[2025-12-22 15:07:26] [INFO]     acwt: 9 pacientes
+[2025-12-22 15:07:26] [INFO]     wright: 7 pacientes
+[2025-12-22 15:07:26] [INFO]     wozniak: 6 pacientes
+[2025-12-22 15:07:26] [INFO]     tcu: 6 pacientes
+[2025-12-22 15:07:26] [INFO]     bu: 6 pacientes
+[2025-12-22 15:07:26] [INFO]     cmu: 2 pacientes
+[2025-12-22 15:07:26] [INFO]     garrett: 2 pacientes
+[2025-12-22 15:07:26] [INFO]     mba: 1 pacientes
+[2025-12-22 15:07:26] [INFO]     star: 1 pacientes
+[2025-12-22 15:07:26] [INFO]     kempler: 1 pacientes
+[2025-12-22 15:07:26] [INFO] 
+Por idioma (PWA):
+[2025-12-22 15:07:26] [INFO]   EN (train): 419
+[2025-12-22 15:07:26] [INFO]   ES (eval):  4
+[2025-12-22 15:07:26] [INFO] 
+======================================================================
+[2025-12-22 15:07:26] [INFO] FEATURES
+[2025-12-22 15:07:26] [INFO] ======================================================================
+[2025-12-22 15:07:26] [INFO] 
+POS-LM método: backoff
+[2025-12-22 15:07:26] [INFO]   Columnas POS-LM encontradas: 30
+[2025-12-22 15:07:26] [INFO] 
+======================================================================
+[2025-12-22 15:07:26] [INFO] FEATURE SELECTION - MODEL IMPORTANCE
+[2025-12-22 15:07:26] [INFO] ======================================================================
+[2025-12-22 15:07:26] [INFO] Entrenando TABPFN para obtener feature importance...
+[2025-12-22 15:07:26] [WARNING] TABPFN no tiene feature_importances_, usando SelectKBest
+[2025-12-22 15:07:26] [INFO] 
+======================================================================
+[2025-12-22 15:07:26] [INFO] FEATURE SELECTION - SELECTKBEST (MUTUAL INFORMATION)
+[2025-12-22 15:07:26] [INFO] ======================================================================
+[2025-12-22 15:07:26] [INFO] Paso 1: Imputando valores faltantes...
+[2025-12-22 15:07:26] [INFO] Paso 2: Seleccionando top 40 features con mutual_info_regression...
+[2025-12-22 15:07:26] [INFO] 
+Resultado: 40 features seleccionadas
+[2025-12-22 15:07:26] [INFO] Tiempo: 0.3 segundos
+[2025-12-22 15:07:26] [INFO] 
+Top 20 features por score:
+[2025-12-22 15:07:26] [INFO]    1. den_determiners                          0.3917
+[2025-12-22 15:07:26] [INFO]    2. den_function_words                       0.3744
+[2025-12-22 15:07:26] [INFO]    3. den_noun_ratio                           0.3229
+[2025-12-22 15:07:26] [INFO]    4. poslm_bo_bigram_ce_max                   0.3055
+[2025-12-22 15:07:26] [INFO]    5. poslm_bo_bigram_ce_mean                  0.3055
+[2025-12-22 15:07:26] [INFO]    6. poslm_bo_bigram_ce_median                0.3055
+[2025-12-22 15:07:26] [INFO]    7. poslm_bo_bigram_ce_q1                    0.3055
+[2025-12-22 15:07:26] [INFO]    8. poslm_bo_bigram_ce_min                   0.3055
+[2025-12-22 15:07:26] [INFO]    9. poslm_bo_bigram_ce_q3                    0.3055
+[2025-12-22 15:07:26] [INFO]   10. poslm_bo_bigram_ce_p99                   0.3055
+[2025-12-22 15:07:26] [INFO]   11. poslm_bo_bigram_ce_p1                    0.3055
+[2025-12-22 15:07:26] [INFO]   12. den_verbs                                0.2987
+[2025-12-22 15:07:26] [INFO]   13. poslm_bo_bigram_ppl_mean                 0.2980
+[2025-12-22 15:07:26] [INFO]   14. poslm_bo_bigram_ppl_median               0.2980
+[2025-12-22 15:07:26] [INFO]   15. den_prepositions                         0.2955
+[2025-12-22 15:07:26] [INFO]   16. den_nouns                                0.2823
+[2025-12-22 15:07:26] [INFO]   17. poslm_bo_trigram_ppl_mean                0.2709
+[2025-12-22 15:07:26] [INFO]   18. poslm_bo_trigram_ppl_median              0.2709
+[2025-12-22 15:07:26] [INFO]   19. poslm_bo_trigram_ce_median               0.2546
+[2025-12-22 15:07:26] [INFO]   20. poslm_bo_trigram_ce_q3                   0.2546
+[2025-12-22 15:07:26] [INFO] 
+Features:
+[2025-12-22 15:07:26] [INFO]   DEN:   15
+[2025-12-22 15:07:26] [INFO]   DYS:   4
+[2025-12-22 15:07:26] [INFO]   LEX:   1
+[2025-12-22 15:07:26] [INFO]   POSLM: 20
+[2025-12-22 15:07:26] [INFO]   TOTAL: 40
+[2025-12-22 15:07:26] [INFO] 
+======================================================================
+[2025-12-22 15:07:26] [INFO] CROSS-VALIDATION (EN) - StratifiedGroupKFold por sub-dataset
+[2025-12-22 15:07:26] [INFO]   * Cada fold tiene 25% de pacientes de CADA sub-dataset
+[2025-12-22 15:07:26] [INFO] Normalización: StandardScaler
+[2025-12-22 15:07:26] [INFO] HPO: GRIDSEARCH
+[2025-12-22 15:07:26] [INFO] ======================================================================
+[2025-12-22 15:07:26] [INFO] 
+  Fold 1/4:
+[2025-12-22 15:07:26] [INFO]     Train sub-datasets: {'kurland': 47, 'unknown': 41, 'scale': 29, 'williamson': 19, 'kansas': 14, 'tucson': 14, 'adler': 13, 'tap': 13, 'unh': 13, 'whiteside': 12, 'umd': 12, 'fridriksson': 12, 'thompson': 11, 'elman': 11, 'msu': 10, 'mma': 9, 'acwt': 7, 'wright': 5, 'bu': 5, 'wozniak': 5, 'tcu': 5, 'cmu': 2, 'garrett': 2, 'star': 1, 'kempler': 1}
+[2025-12-22 15:07:26] [INFO]     Test sub-datasets:  {'kurland': 16, 'unknown': 15, 'scale': 10, 'fridriksson': 6, 'tucson': 6, 'whiteside': 6, 'kansas': 5, 'tap': 5, 'adler': 5, 'unh': 4, 'mma': 4, 'elman': 4, 'williamson': 4, 'msu': 3, 'thompson': 3, 'umd': 2, 'acwt': 2, 'wright': 2, 'bu': 1, 'mba': 1, 'tcu': 1, 'wozniak': 1}
+[2025-12-22 15:07:26] [INFO]     Optimizando hiperparámetros con GRIDSEARCH...
+[2025-12-22 15:07:59] [INFO]     MAE: 10.893
+[2025-12-22 15:07:59] [INFO]     Best params: {}
+[2025-12-22 15:07:59] [INFO]     Trials/Combinations: 1
+[2025-12-22 15:07:59] [INFO] 
+  Fold 2/4:
+[2025-12-22 15:07:59] [INFO]     Train sub-datasets: {'kurland': 47, 'unknown': 44, 'scale': 29, 'williamson': 17, 'tucson': 16, 'fridriksson': 15, 'whiteside': 14, 'kansas': 14, 'unh': 13, 'adler': 13, 'tap': 13, 'elman': 11, 'mma': 11, 'thompson': 9, 'msu': 9, 'umd': 8, 'tcu': 6, 'acwt': 5, 'wright': 5, 'wozniak': 5, 'bu': 5, 'cmu': 2, 'mba': 1, 'star': 1, 'garrett': 1, 'kempler': 1}
+[2025-12-22 15:07:59] [INFO]     Test sub-datasets:  {'kurland': 16, 'unknown': 12, 'scale': 10, 'umd': 6, 'williamson': 6, 'tap': 5, 'thompson': 5, 'kansas': 5, 'adler': 5, 'tucson': 4, 'whiteside': 4, 'msu': 4, 'acwt': 4, 'unh': 4, 'elman': 4, 'fridriksson': 3, 'mma': 2, 'wright': 2, 'bu': 1, 'garrett': 1, 'wozniak': 1}
+[2025-12-22 15:07:59] [INFO]     Optimizando hiperparámetros con GRIDSEARCH...
+[2025-12-22 15:08:24] [INFO]     MAE: 11.969
+[2025-12-22 15:08:24] [INFO]     Best params: {}
+[2025-12-22 15:08:24] [INFO]     Trials/Combinations: 1
+[2025-12-22 15:08:24] [INFO] 
+  Fold 3/4:
+[2025-12-22 15:08:24] [INFO]     Train sub-datasets: {'kurland': 48, 'unknown': 40, 'scale': 28, 'tap': 15, 'kansas': 15, 'williamson': 15, 'tucson': 15, 'adler': 14, 'whiteside': 14, 'fridriksson': 14, 'elman': 12, 'umd': 12, 'unh': 12, 'thompson': 11, 'msu': 10, 'mma': 9, 'acwt': 8, 'wright': 5, 'wozniak': 5, 'bu': 4, 'tcu': 3, 'mba': 1, 'star': 1, 'garrett': 1, 'kempler': 1}
+[2025-12-22 15:08:24] [INFO]     Test sub-datasets:  {'unknown': 16, 'kurland': 15, 'scale': 11, 'williamson': 8, 'tucson': 5, 'unh': 5, 'mma': 4, 'kansas': 4, 'whiteside': 4, 'adler': 4, 'fridriksson': 4, 'thompson': 3, 'tcu': 3, 'elman': 3, 'msu': 3, 'tap': 3, 'wright': 2, 'bu': 2, 'umd': 2, 'cmu': 2, 'acwt': 1, 'garrett': 1, 'wozniak': 1}
+[2025-12-22 15:08:24] [INFO]     Optimizando hiperparámetros con GRIDSEARCH...
+[2025-12-22 15:08:50] [INFO]     MAE: 11.285
+[2025-12-22 15:08:50] [INFO]     Best params: {}
+[2025-12-22 15:08:50] [INFO]     Trials/Combinations: 1
+[2025-12-22 15:08:50] [INFO] 
+  Fold 4/4:
+[2025-12-22 15:08:50] [INFO]     Train sub-datasets: {'kurland': 47, 'unknown': 43, 'scale': 31, 'williamson': 18, 'tucson': 15, 'kansas': 14, 'whiteside': 14, 'adler': 14, 'tap': 13, 'fridriksson': 13, 'unh': 13, 'thompson': 11, 'elman': 11, 'mma': 10, 'msu': 10, 'umd': 10, 'acwt': 7, 'wright': 6, 'tcu': 4, 'bu': 4, 'wozniak': 3, 'garrett': 2, 'cmu': 2, 'mba': 1}
+[2025-12-22 15:08:50] [INFO]     Test sub-datasets:  {'kurland': 16, 'unknown': 13, 'scale': 8, 'fridriksson': 5, 'kansas': 5, 'williamson': 5, 'tucson': 5, 'tap': 5, 'whiteside': 4, 'elman': 4, 'adler': 4, 'unh': 4, 'umd': 4, 'mma': 3, 'msu': 3, 'wozniak': 3, 'thompson': 3, 'acwt': 2, 'bu': 2, 'tcu': 2, 'kempler': 1, 'star': 1, 'wright': 1}
+[2025-12-22 15:08:50] [INFO]     Optimizando hiperparámetros con GRIDSEARCH...
+[2025-12-22 15:09:15] [INFO]     MAE: 10.088
+[2025-12-22 15:09:15] [INFO]     Best params: {}
+[2025-12-22 15:09:15] [INFO]     Trials/Combinations: 1
+[2025-12-22 15:09:15] [INFO] 
+Distribución de sub-datasets guardada
+[2025-12-22 15:09:15] [INFO] 
+======================================================================
+[2025-12-22 15:09:15] [INFO] EVALUACION: CV_PWA
+[2025-12-22 15:09:15] [INFO] ======================================================================
+[2025-12-22 15:09:15] [INFO] Metricas de regresion:
+[2025-12-22 15:09:15] [INFO]   MAE:        11.061
+[2025-12-22 15:09:15] [INFO]   RMSE:       15.163
+[2025-12-22 15:09:15] [INFO]   R²:         0.593
+[2025-12-22 15:09:15] [INFO]   Pearson r:  0.777 (p=0.0000)
+[2025-12-22 15:09:15] [INFO]   Spearman:   0.766 (p=0.0000)
+[2025-12-22 15:09:15] [INFO] 
+Accuracy por distancia:
+[2025-12-22 15:09:15] [INFO]   Acc@1:  8.11%
+[2025-12-22 15:09:15] [INFO]   Acc@5:  32.46%
+[2025-12-22 15:09:15] [INFO]   Acc@10: 57.76%
+[2025-12-22 15:09:15] [INFO]   Exact:  0.00%
+[2025-12-22 15:09:15] [INFO] 
+Clasificacion por severidad:
+[2025-12-22 15:09:15] [INFO]   Accuracy: 62.05%
+[2025-12-22 15:09:15] [INFO] 
+  Por clase:
+[2025-12-22 15:09:15] [INFO]     Very Severe: Prec=100.00%, Rec=27.27%, F1=42.86%
+[2025-12-22 15:09:15] [INFO]     Severe: Prec=35.59%, Rec=38.18%, F1=36.84%
+[2025-12-22 15:09:15] [INFO]     Moderate: Prec=56.32%, Rec=68.59%, F1=61.85%
+[2025-12-22 15:09:15] [INFO]     Mild: Prec=75.95%, Rec=73.17%, F1=74.53%
+[2025-12-22 15:09:15] [INFO] 
+Generando graficos...
+[2025-12-22 15:09:16] [INFO] Guardados: CV_PWA_*.csv/png
+[2025-12-22 15:09:16] [INFO] 
+======================================================================
+[2025-12-22 15:09:16] [INFO] CALIBRACION
+[2025-12-22 15:09:16] [INFO] ======================================================================
+[2025-12-22 15:09:16] [INFO] 
+======================================================================
+[2025-12-22 15:09:16] [INFO] EVALUACION: CV_PWA_CALIBRATED
+[2025-12-22 15:09:16] [INFO] ======================================================================
+[2025-12-22 15:09:16] [INFO] Metricas de regresion:
+[2025-12-22 15:09:16] [INFO]   MAE:        10.272
+[2025-12-22 15:09:16] [INFO]   RMSE:       14.170
+[2025-12-22 15:09:16] [INFO]   R²:         0.644
+[2025-12-22 15:09:16] [INFO]   Pearson r:  0.803 (p=0.0000)
+[2025-12-22 15:09:16] [INFO]   Spearman:   0.780 (p=0.0000)
+[2025-12-22 15:09:16] [INFO] 
+Accuracy por distancia:
+[2025-12-22 15:09:16] [INFO]   Acc@1:  8.59%
+[2025-12-22 15:09:16] [INFO]   Acc@5:  34.61%
+[2025-12-22 15:09:16] [INFO]   Acc@10: 63.01%
+[2025-12-22 15:09:16] [INFO]   Exact:  0.72%
+[2025-12-22 15:09:16] [INFO] 
+Clasificacion por severidad:
+[2025-12-22 15:09:16] [INFO]   Accuracy: 63.01%
+[2025-12-22 15:09:16] [INFO] 
+  Por clase:
+[2025-12-22 15:09:16] [INFO]     Very Severe: Prec=89.47%, Rec=38.64%, F1=53.97%
+[2025-12-22 15:09:16] [INFO]     Severe: Prec=39.22%, Rec=36.36%, F1=37.74%
+[2025-12-22 15:09:16] [INFO]     Moderate: Prec=54.66%, Rec=82.69%, F1=65.82%
+[2025-12-22 15:09:16] [INFO]     Mild: Prec=86.73%, Rec=59.76%, F1=70.76%
+[2025-12-22 15:09:16] [INFO] 
+Generando graficos...
+[2025-12-22 15:09:17] [INFO] Guardados: CV_PWA_CALIBRATED_*.csv/png
+[2025-12-22 15:09:17] [INFO] 
+======================================================================
+[2025-12-22 15:09:17] [INFO] ANÁLISIS DE ERROR
+[2025-12-22 15:09:17] [INFO] ======================================================================
+[2025-12-22 15:09:17] [INFO] 
+======================================================================
+[2025-12-22 15:09:17] [INFO] ANÁLISIS POR GRUPOS DE ERROR (Threshold=5.316)
+[2025-12-22 15:09:17] [INFO] ======================================================================
+[2025-12-22 15:09:17] [INFO] 
+Grupo Low Errors:
+[2025-12-22 15:09:17] [INFO]   N:          150
+[2025-12-22 15:09:17] [INFO]   MAE:        2.50 ± 1.55
+[2025-12-22 15:09:17] [INFO]   QA real:    67.0 ± 20.0
+[2025-12-22 15:09:17] [INFO] 
+Grupo High Errors:
+[2025-12-22 15:09:17] [INFO]   N:          269
+[2025-12-22 15:09:17] [INFO]   MAE:        14.61 ± 9.73
+[2025-12-22 15:09:17] [INFO]   QA real:    62.1 ± 25.4
+[2025-12-22 15:09:17] [INFO] 
+Diferencia en QA real entre grupos:
+[2025-12-22 15:09:17] [INFO]   t-statistic: 2.185
+[2025-12-22 15:09:17] [INFO]   p-value:     0.0295
+[2025-12-22 15:09:17] [INFO] 
+Guardado: error_histogram.png, error_groups_analysis.csv
+[2025-12-22 15:09:17] [INFO] 
+======================================================================
+[2025-12-22 15:09:17] [INFO] MODELO FINAL
+[2025-12-22 15:09:17] [INFO] ======================================================================
+[2025-12-22 15:09:17] [INFO] Entrenando con: 419 PWA EN + 70 Control
+[2025-12-22 15:09:17] [INFO] Optimizando modelo final con GRIDSEARCH...
+[2025-12-22 15:09:39] [INFO] Mejores parámetros:
+[2025-12-22 15:09:39] [INFO] Trials/Combinations: 1
+[2025-12-22 15:09:39] [INFO] ✓ Mejores hiperparámetros guardados: best_params_final.csv/json
+[2025-12-22 15:09:39] [INFO] 
+======================================================================
+[2025-12-22 15:09:39] [INFO] INTERPRETABILIDAD
+[2025-12-22 15:09:39] [INFO] ======================================================================
+[2025-12-22 15:09:39] [INFO] 
+======================================================================
+[2025-12-22 15:09:39] [INFO] PERMUTATION IMPORTANCE
+[2025-12-22 15:09:39] [INFO] ======================================================================
+[2025-12-22 15:09:39] [INFO] Calculando (n_repeats=10)...
+[2025-12-22 16:01:05] [INFO] 
+Top 20 features:
+[2025-12-22 16:01:05] [INFO]    1. den_prepositions                         3.5716 +/- 0.1346
+[2025-12-22 16:01:05] [INFO]    2. dys_fillers_per_min                      3.5075 +/- 0.3136
+[2025-12-22 16:01:05] [INFO]    3. dys_pauses_per_min                       3.0868 +/- 0.1991
+[2025-12-22 16:01:05] [INFO]    4. den_phones_per_min                       2.3918 +/- 0.1330
+[2025-12-22 16:01:05] [INFO]    5. den_words_per_min                        2.0739 +/- 0.1021
+[2025-12-22 16:01:05] [INFO]    6. den_function_words                       1.8053 +/- 0.1603
+[2025-12-22 16:01:05] [INFO]    7. den_determiners                          1.7284 +/- 0.0979
+[2025-12-22 16:01:05] [INFO]    8. den_nouns                                1.7059 +/- 0.1539
+[2025-12-22 16:01:05] [INFO]    9. den_pronoun_ratio                        1.4426 +/- 0.1264
+[2025-12-22 16:01:05] [INFO]   10. den_verbs                                1.4112 +/- 0.0604
+[2025-12-22 16:01:05] [INFO]   11. lex_phones_max                           0.8134 +/- 0.0915
+[2025-12-22 16:01:05] [INFO]   12. den_noun_ratio                           0.7235 +/- 0.0386
+[2025-12-22 16:01:05] [INFO]   13. dys_fillers_per_phone                    0.4579 +/- 0.0622
+[2025-12-22 16:01:05] [INFO]   14. poslm_bo_bigram_ce_median                0.4571 +/- 0.0483
+[2025-12-22 16:01:05] [INFO]   15. poslm_bo_bigram_ce_q3                    0.4155 +/- 0.0376
+[2025-12-22 16:01:05] [INFO]   16. den_words_utt_q3                         0.3768 +/- 0.0451
+[2025-12-22 16:01:05] [INFO]   17. poslm_bo_bigram_ce_mean                  0.3653 +/- 0.0406
+[2025-12-22 16:01:05] [INFO]   18. den_phones_utt_mean                      0.3450 +/- 0.0288
+[2025-12-22 16:01:05] [INFO]   19. poslm_bo_bigram_ce_q1                    0.3437 +/- 0.0347
+[2025-12-22 16:01:05] [INFO]   20. dys_fillers_per_word                     0.3406 +/- 0.0456
+[2025-12-22 16:01:05] [INFO] 
+Guardado: feature_importance_permutation.csv/png
+[2025-12-22 16:01:05] [INFO] 
+======================================================================
+[2025-12-22 16:01:05] [INFO] ANALISIS POR GRUPOS (Permutation)
+[2025-12-22 16:01:05] [INFO] ======================================================================
+[2025-12-22 16:01:06] [INFO] 
+Importancia por grupo:
+[2025-12-22 16:01:06] [INFO]   Grupo         Total      Media    Count    % Total
+[2025-12-22 16:01:06] [INFO]   ------------------------------------------------------------
+[2025-12-22 16:01:06] [INFO]   DEN         18.5804     1.2387       15      57.5%
+[2025-12-22 16:01:06] [INFO]   DYS          7.3928     1.8482        4      22.9%
+[2025-12-22 16:01:06] [INFO]   POSLM        5.5436     0.2772       20      17.1%
+[2025-12-22 16:01:06] [INFO]   LEX          0.8134     0.8134        1       2.5%
+[2025-12-22 16:01:06] [INFO] 
+Guardado: feature_importance_by_group_permutation.csv/png
+[2025-12-22 16:01:06] [INFO] 
+======================================================================
+[2025-12-22 16:01:06] [INFO] SHAP VALUES
+[2025-12-22 16:01:06] [INFO] ======================================================================
+[2025-12-22 16:01:06] [INFO] Calculando SHAP values...
+[2025-12-22 16:01:06] [INFO]   Usando 50 samples random como background
+[2025-12-22 16:01:06] [INFO]   Creando SHAP explainer...
+[2025-12-22 16:01:10] [INFO]   Calculando SHAP para 20 samples de test...
+[2025-12-22 20:40:30] [INFO] 
+Top 20 features (SHAP):
+[2025-12-22 20:40:30] [INFO]    1. dys_fillers_per_min                      3.7138
+[2025-12-22 20:40:30] [INFO]    2. den_prepositions                         3.1584
+[2025-12-22 20:40:30] [INFO]    3. dys_pauses_per_min                       3.1081
+[2025-12-22 20:40:30] [INFO]    4. den_determiners                          2.9806
+[2025-12-22 20:40:30] [INFO]    5. den_phones_per_min                       1.9800
+[2025-12-22 20:40:30] [INFO]    6. den_function_words                       1.8045
+[2025-12-22 20:40:30] [INFO]    7. den_words_per_min                        1.7519
+[2025-12-22 20:40:30] [INFO]    8. den_verbs                                1.4586
+[2025-12-22 20:40:30] [INFO]    9. lex_phones_max                           0.5669
+[2025-12-22 20:40:30] [INFO]   10. poslm_bo_bigram_ce_median                0.5351
+[2025-12-22 20:40:30] [INFO]   11. den_nouns                                0.3794
+[2025-12-22 20:40:30] [INFO]   12. den_pronoun_ratio                        0.3545
+[2025-12-22 20:40:30] [INFO]   13. den_words_utt_q3                         0.3476
+[2025-12-22 20:40:30] [INFO]   14. poslm_bo_bigram_ce_q3                    0.3375
+[2025-12-22 20:40:30] [INFO]   15. poslm_bo_bigram_ce_mean                  0.3319
+[2025-12-22 20:40:30] [INFO]   16. dys_fillers_per_phone                    0.3235
+[2025-12-22 20:40:30] [INFO]   17. poslm_bo_bigram_ce_p99                   0.3005
+[2025-12-22 20:40:30] [INFO]   18. poslm_bo_bigram_ce_min                   0.1830
+[2025-12-22 20:40:30] [INFO]   19. poslm_bo_bigram_ce_q1                    0.1792
+[2025-12-22 20:40:30] [INFO]   20. poslm_bo_bigram_ppl_mean                 0.1594
+[2025-12-22 20:40:30] [INFO] 
+Generando graficos SHAP...
+[2025-12-22 20:40:32] [INFO]   Guardado: shap_summary_*.png
+[2025-12-22 20:40:32] [INFO] Guardado: shap_values.csv, feature_importance_shap.csv
+[2025-12-22 20:40:32] [INFO] 
+======================================================================
+[2025-12-22 20:40:32] [INFO] ANALISIS POR GRUPOS (SHAP)
+[2025-12-22 20:40:32] [INFO] ======================================================================
+[2025-12-22 20:40:32] [INFO] 
+Importancia por grupo:
+[2025-12-22 20:40:32] [INFO]   Grupo         Total      Media    Count    % Total
+[2025-12-22 20:40:32] [INFO]   ------------------------------------------------------------
+[2025-12-22 20:40:32] [INFO]   DEN         14.3261     0.9551       15      58.8%
+[2025-12-22 20:40:32] [INFO]   DYS          7.2623     1.8156        4      29.8%
+[2025-12-22 20:40:32] [INFO]   POSLM        2.2280     0.1114       20       9.1%
+[2025-12-22 20:40:32] [INFO]   LEX          0.5669     0.5669        1       2.3%
+[2025-12-22 20:40:32] [INFO] 
+Guardado: feature_importance_by_group_shap.csv/png
+[2025-12-22 20:40:32] [INFO] 
+======================================================================
+[2025-12-22 20:40:32] [INFO] EVALUACION ESPAÑOL
+[2025-12-22 20:40:32] [INFO] ======================================================================
+[2025-12-22 20:40:32] [INFO] Evaluando 4 pacientes españoles...
+[2025-12-22 20:40:36] [INFO] 
+======================================================================
+[2025-12-22 20:40:36] [INFO] EVALUACION: EVAL_ES_RAW
+[2025-12-22 20:40:36] [INFO] ======================================================================
+[2025-12-22 20:40:36] [INFO] Metricas de regresion:
+[2025-12-22 20:40:36] [INFO]   MAE:        21.548
+[2025-12-22 20:40:36] [INFO]   RMSE:       22.824
+[2025-12-22 20:40:36] [INFO]   R²:         -7.581
+[2025-12-22 20:40:36] [INFO]   Pearson r:  -0.765 (p=0.2351)
+[2025-12-22 20:40:36] [INFO]   Spearman:   -0.400 (p=0.6000)
+[2025-12-22 20:40:36] [INFO] 
+Accuracy por distancia:
+[2025-12-22 20:40:36] [INFO]   Acc@1:  0.00%
+[2025-12-22 20:40:36] [INFO]   Acc@5:  0.00%
+[2025-12-22 20:40:36] [INFO]   Acc@10: 0.00%
+[2025-12-22 20:40:36] [INFO]   Exact:  0.00%
+[2025-12-22 20:40:36] [INFO] 
+Clasificacion por severidad:
+[2025-12-22 20:40:36] [INFO]   Accuracy: 0.00%
+[2025-12-22 20:40:36] [INFO] 
+  Por clase:
+[2025-12-22 20:40:36] [INFO]     Very Severe: Prec=0.00%, Rec=0.00%, F1=0.00%
+[2025-12-22 20:40:36] [INFO]     Severe: Prec=0.00%, Rec=0.00%, F1=0.00%
+[2025-12-22 20:40:36] [INFO]     Moderate: Prec=0.00%, Rec=0.00%, F1=0.00%
+[2025-12-22 20:40:36] [INFO]     Mild: Prec=0.00%, Rec=0.00%, F1=0.00%
+[2025-12-22 20:40:36] [INFO] 
+Generando graficos...
+[2025-12-22 20:40:37] [INFO] Guardados: EVAL_ES_RAW_*.csv/png
+[2025-12-22 20:40:37] [INFO] 
+======================================================================
+[2025-12-22 20:40:37] [INFO] EVALUACION: EVAL_ES_CALIBRATED
+[2025-12-22 20:40:37] [INFO] ======================================================================
+[2025-12-22 20:40:37] [INFO] Metricas de regresion:
+[2025-12-22 20:40:37] [INFO]   MAE:        23.119
+[2025-12-22 20:40:37] [INFO]   RMSE:       25.111
+[2025-12-22 20:40:37] [INFO]   R²:         -9.387
+[2025-12-22 20:40:37] [INFO]   Pearson r:  -0.640 (p=0.3596)
+[2025-12-22 20:40:37] [INFO]   Spearman:   -0.400 (p=0.6000)
+[2025-12-22 20:40:37] [INFO] 
+Accuracy por distancia:
+[2025-12-22 20:40:37] [INFO]   Acc@1:  0.00%
+[2025-12-22 20:40:37] [INFO]   Acc@5:  0.00%
+[2025-12-22 20:40:37] [INFO]   Acc@10: 0.00%
+[2025-12-22 20:40:37] [INFO]   Exact:  0.00%
+[2025-12-22 20:40:37] [INFO] 
+Clasificacion por severidad:
+[2025-12-22 20:40:37] [INFO]   Accuracy: 25.00%
+[2025-12-22 20:40:37] [INFO] 
+  Por clase:
+[2025-12-22 20:40:37] [INFO]     Very Severe: Prec=0.00%, Rec=0.00%, F1=0.00%
+[2025-12-22 20:40:37] [INFO]     Severe: Prec=0.00%, Rec=0.00%, F1=0.00%
+[2025-12-22 20:40:37] [INFO]     Moderate: Prec=33.33%, Rec=100.00%, F1=50.00%
+[2025-12-22 20:40:37] [INFO]     Mild: Prec=0.00%, Rec=0.00%, F1=0.00%
+[2025-12-22 20:40:37] [INFO] 
+Generando graficos...
+[2025-12-22 20:40:38] [INFO] Guardados: EVAL_ES_CALIBRATED_*.csv/png
+[2025-12-22 20:40:38] [INFO] 
+======================================================================
+[2025-12-22 20:40:38] [INFO] EVALUACION CATALÁN
+[2025-12-22 20:40:38] [INFO] ======================================================================
+[2025-12-22 20:40:38] [INFO] No hay datos en catalán para evaluar
+[2025-12-22 20:40:38] [INFO] 
+======================================================================
+[2025-12-22 20:40:38] [INFO] PROCESO COMPLETADO
+[2025-12-22 20:40:38] [INFO] ======================================================================
+[2025-12-22 20:40:38] [INFO] Resultados guardados en: /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/outputs/experiments/resultados_modelos/TABPFN_20251222_150726_IMPORTANCE_POSLM-BACKOFF_ZNORM-STD_STRATIFIED_GRIDSEARCH
+[2025-12-22 20:40:38] [INFO] 
+======================================================================
+[2025-12-22 20:40:38] [INFO] REGISTRANDO EXPERIMENTO
+[2025-12-22 20:40:38] [INFO] ======================================================================
+[2025-12-22 20:40:38] [INFO] Experimento registrado
+[2025-12-22 20:40:38] [INFO] 
+======================================================================
+[2025-12-22 20:40:38] [INFO] COMPARACIÓN CON LE ET AL. (2018)
+[2025-12-22 20:40:38] [INFO] ======================================================================
+[2025-12-22 20:40:38] [INFO] 
+Resultados del paper:
+[2025-12-22 20:40:38] [INFO]   MAE:        8.86 (Oracle) / 9.18 (Auto)
+[2025-12-22 20:40:38] [INFO]   Correlación: .801 (Oracle) / .799 (Auto)
+[2025-12-22 20:40:38] [INFO] 
+Nuestros resultados (CV_PWA_CALIBRATED):
+[2025-12-22 20:40:38] [INFO]   MAE:        10.27
+[2025-12-22 20:40:38] [INFO]   Correlación: 0.803
+[2025-12-22 20:40:38] [INFO] 
+Diferencia con el paper:
+[2025-12-22 20:40:38] [INFO]   ΔMAE:  +1.09 (peor)
+[2025-12-22 20:40:38] [INFO]   ΔCorr: +0.004 (mejor)
