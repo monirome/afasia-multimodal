@@ -156,7 +156,7 @@
 
 **Conclusion:** Balanced severity distribution leads to better predictions
 
-# 🎯 Key Findings
+# Key Findings
 
 ## 1. Main Achievement
 **TabPFN with Severity-based CV achieves MAE=9.07**, outperforming Le et al. (2018) by 0.11 points while also achieving higher correlation (r=0.845 vs. 0.799).
