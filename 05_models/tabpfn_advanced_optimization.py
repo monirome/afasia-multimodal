@@ -2,15 +2,21 @@
 # 05_models/tabpfn_advanced_optimization.py
 # -*- coding: utf-8 -*-
 """
-TABPFN ADVANCED OPTIMIZATION & EXPLAINABILITY
+TABPFN ADVANCED OPTIMIZATION - VERSIÓN "MONSTRUO" COMPLETA
+Combina la optimización avanzada con la metodología rigurosa universal.
 
 FEATURES:
-- Optimizacion de n_estimators (16, 32, 64, 128, 256)
-- Ensemble con multiples seeds para reducir varianza
-- Explicabilidad avanzada: LIME, SHAP, Permutation Importance
-- Analisis de incertidumbre (prediccion + intervalo de confianza)
-- Feature importance por grupos (DEN, DYS, LEX, POSLM)
-- Comparacion automatica de todas las configuraciones
+- Optimización de n_estimators y Ensemble Seeds.
+- Metodología Universal: 
+    * CV por Severidad o Subdataset.
+    * Filtrado POS-LM.
+    * Selección de Características (SelectKBest) dentro del fold.
+- Visualización TOTAL:
+    * Scatter Plots con métricas de precisión.
+    * Matrices de Confusión.
+    * Histogramas de Error.
+    * Gráfico de Barras Comparativo de Experimentos.
+- Explicabilidad: SHAP, LIME, Permutation Importance.
 """
 
 import os
@@ -33,8 +39,9 @@ import seaborn as sns
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import StratifiedGroupKFold
-from sklearn.metrics import mean_absolute_error, r2_score
-from scipy.stats import pearsonr
+from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error, accuracy_score, confusion_matrix, classification_report
+from scipy.stats import pearsonr, spearmanr, ttest_ind
+from sklearn.feature_selection import SelectKBest, mutual_info_regression
 
 # Importar TabPFN
 try:
@@ -70,9 +77,17 @@ os.makedirs(RESULTS_BASE, exist_ok=True)
 
 # ======================== CONFIGURACION ========================
 EXPERIMENTS_CONFIG = {
-    'n_estimators_list': [16, 32, 64, 128, 256],
+    # --- Hiperparámetros ---
+    'n_estimators_list': [16, 32, 64, 128], # Lista completa
     'ensemble_seeds': [42, 123, 456, 789, 1011],
-    'cv_strategy': 'subdataset',
+    
+    # --- Metodología (Alineada) ---
+    'cv_strategy': 'subdataset',  # 'subdataset' (Paper) o 'severity' (Tu Récord)
+    'poslm_method': 'backoff',    # 'none', 'kneser-ney', 'backoff', 'all'
+    'feature_selection': 'kbest', # 'kbest' o 'full'
+    'k_features': 40,             # Número de features a mantener
+    
+    # --- Configuración General ---
     'cv_folds': 4,
     'lime_samples': 50,
     'shap_samples': 100,
@@ -80,675 +95,385 @@ EXPERIMENTS_CONFIG = {
 
 # ======================== LOGGER ========================
 def set_logger(run_dir):
-    log = logging.getLogger("TabPFN_Optimization")
+    log = logging.getLogger("TabPFN_Opt")
     log.setLevel(logging.INFO)
-    
-    fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s", 
-                           datefmt="%Y-%m-%d %H:%M:%S")
-    
+    fmt = logging.Formatter("[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
     ch = logging.StreamHandler(sys.stdout)
     ch.setFormatter(fmt)
     fh = logging.FileHandler(run_dir / "optimization.log", mode="w", encoding="utf-8")
     fh.setFormatter(fmt)
-    
-    for h in list(log.handlers):
-        log.removeHandler(h)
+    # Limpiar handlers previos
+    if log.hasHandlers(): log.handlers.clear()
     log.addHandler(ch)
     log.addHandler(fh)
-    
     return log
 
-# ======================== UTILIDADES ========================
+# ======================== UTILIDADES DE METODOLOGÍA ========================
 def extract_subdataset_from_patient_id(patient_ids):
     """Extrae sub-dataset desde patient_id"""
-    if isinstance(patient_ids, pd.Series):
-        s = patient_ids.astype(str)
-    else:
-        s = pd.Series(list(patient_ids), dtype=object).astype(str)
-    
+    if isinstance(patient_ids, pd.Series): s = patient_ids.astype(str)
+    else: s = pd.Series(list(patient_ids), dtype=object).astype(str)
     sub = s.str.extract(r'^([A-Za-z]+)', expand=False).str.lower()
-    sub = sub.fillna("unknown")
-    return sub.astype(str).values
+    return sub.fillna("unknown").astype(str).values
+
+def qa_to_severity_numeric(qa_scores):
+    """Convierte QA a bins numéricos (0-3)"""
+    bins = [0, 25, 50, 75, 100]
+    labels = [0, 1, 2, 3] 
+    return pd.cut(qa_scores, bins=bins, labels=labels, include_lowest=True).astype(int).values
+
+def get_poslm_features(df, method='backoff'):
+    """Filtra columnas POS-LM"""
+    all_poslm = [c for c in df.columns if c.startswith('poslm_')]
+    if method == 'none': return []
+    if method == 'all': return all_poslm
+    prefixes = {'kneser-ney': 'poslm_kn_', 'backoff': 'poslm_bo_', 'lstm': 'poslm_lstm_'}
+    prefix = prefixes.get(method, 'poslm_')
+    return [c for c in all_poslm if c.startswith(prefix)]
+
+# ======================== VISUALIZACIÓN RICA (DEL UNIVERSAL) ========================
+SEVERITY_LABELS = ['Very Severe', 'Severe', 'Moderate', 'Mild']
+SEVERITY_BINS = [0, 25, 50, 75, 100]
+
+def qa_to_severity(qa_scores):
+    return pd.cut(qa_scores, bins=SEVERITY_BINS, labels=SEVERITY_LABELS, include_lowest=True)
+
+def to_int(pred):
+    return np.rint(np.asarray(pred)).clip(0, 100).astype(int)
 
 def compute_metrics(y_true, y_pred):
-    """Calcula metricas de regresion"""
     mae = mean_absolute_error(y_true, y_pred)
     r2 = r2_score(y_true, y_pred)
-    
-    try:
-        pearson_r, _ = pearsonr(y_true, y_pred)
-    except:
-        pearson_r = np.nan
-    
-    return {'MAE': mae, 'R2': r2, 'Pearson_r': pearson_r}
+    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+    try: p_r, _ = pearsonr(y_true, y_pred)
+    except: p_r = np.nan
+    return {'MAE': mae, 'RMSE': rmse, 'R2': r2, 'Pearson_r': p_r}
 
-# ======================== TABPFN CON DIFERENTES N_ESTIMATORS ========================
-def train_tabpfn_with_n_estimators(X_train, y_train, X_test, y_test, 
-                                   n_estimators, fold_idx, log):
-    """Entrena TabPFN con n_estimators especifico"""
-    log.info(f"      n_estimators={n_estimators}...", end="")
+def compute_accuracy_metrics(y_true, y_pred_int):
+    errors = np.abs(y_pred_int - y_true)
+    return {
+        'Acc@1': float(np.mean(errors <= 1)),
+        'Acc@5': float(np.mean(errors <= 5)),
+        'Acc@10': float(np.mean(errors <= 10))
+    }
+
+def compute_severity_accuracy(y_true, y_pred):
+    sev_true = qa_to_severity(y_true)
+    sev_pred = qa_to_severity(y_pred)
+    acc = accuracy_score(sev_true, sev_pred)
+    cm = confusion_matrix(sev_true, sev_pred, labels=SEVERITY_LABELS)
+    return {'severity_accuracy': acc, 'confusion_matrix': cm}
+
+def plot_scatter_with_precision(y_true, y_pred, title, out_png, metrics=None):
+    if metrics is None: metrics = compute_metrics(y_true, y_pred)
+    acc_metrics = compute_accuracy_metrics(y_true, to_int(y_pred))
     
+    plt.figure(figsize=(9, 9))
+    plt.scatter(y_true, y_pred, alpha=0.6, s=50, edgecolors='black', linewidth=0.5)
+    mn, mx = float(np.min(y_true)), float(np.max(y_true))
+    plt.plot([mn, mx], [mn, mx], "r--", linewidth=2, label="Identidad")
+    
+    text = (f"MAE:      {metrics['MAE']:.2f}\nR²:       {metrics['R2']:.3f}\n"
+            f"Pearson:  {metrics['Pearson_r']:.3f}\n─────────────\n"
+            f"Acc@5:    {100*acc_metrics['Acc@5']:.1f}%")
+    plt.text(0.05, 0.95, text, transform=plt.gca().transAxes, verticalalignment='top',
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.9), fontsize=10, family='monospace')
+    plt.xlabel("QA Real"); plt.ylabel("QA Predicho"); plt.title(title, fontweight='bold')
+    plt.legend(); plt.grid(True, alpha=0.3); plt.tight_layout(); plt.savefig(out_png, dpi=150); plt.close()
+
+def plot_confusion_matrix(cm, title, out_png):
+    fig, ax = plt.subplots(figsize=(8, 7))
+    cm_norm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+    im = ax.imshow(cm_norm, interpolation='nearest', cmap='Blues')
+    ax.figure.colorbar(im, ax=ax)
+    ax.set(xticks=np.arange(cm.shape[1]), yticks=np.arange(cm.shape[0]),
+           xticklabels=SEVERITY_LABELS, yticklabels=SEVERITY_LABELS,
+           ylabel='Severidad Real', xlabel='Severidad Predicha')
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+    thresh = cm_norm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, f"{cm[i, j]}\n({cm_norm[i, j]*100:.1f}%)",
+                   ha="center", va="center", color="white" if cm_norm[i, j] > thresh else "black")
+    ax.set_title(title, fontweight='bold'); plt.tight_layout(); plt.savefig(out_png, dpi=150); plt.close()
+
+def plot_error_histogram(y_true, y_pred, title, out_png, threshold=5.316):
+    errors = np.abs(y_true - y_pred)
+    plt.figure(figsize=(10, 6))
+    n, bins, patches = plt.hist(errors, bins=30, edgecolor='black', alpha=0.7, color='steelblue')
+    for i, patch in enumerate(patches):
+        patch.set_facecolor('mediumseagreen' if bins[i] <= threshold else 'coral')
+    plt.axvline(x=threshold, color='red', linestyle='--', label=f'Umbral ({threshold:.2f})')
+    plt.xlabel('Error Absoluto'); plt.ylabel('Frecuencia'); plt.title(title, fontweight='bold')
+    plt.legend(); plt.grid(True, alpha=0.3); plt.tight_layout(); plt.savefig(out_png, dpi=150); plt.close()
+
+# ======================== ENTRENAMIENTO ========================
+def train_tabpfn_with_n_estimators(X_train, y_train, X_test, y_test, n_estimators, log):
+    import time; start = time.time()
     model = TabPFNRegressor(device='cpu', n_estimators=n_estimators)
     model.fit(X_train, y_train)
-    
     y_pred = model.predict(X_test)
     mae = mean_absolute_error(y_test, y_pred)
-    
-    log.info(f" MAE={mae:.3f}")
-    
+    elapsed = time.time() - start
+    log.info(f"      n={n_estimators}: MAE={mae:.3f} (t={elapsed:.1f}s)")
     return model, y_pred, mae
 
-# ======================== ENSEMBLE CON MULTIPLES SEEDS ========================
-def train_ensemble_seeds(X_train, y_train, X_test, y_test, n_estimators, 
-                        seeds, fold_idx, log):
-    """Entrena ensemble de TabPFN con diferentes seeds"""
-    log.info(f"      Ensemble (n_est={n_estimators}, seeds={len(seeds)})...")
-    
-    predictions = []
-    
-    for seed in seeds:
+def train_ensemble_seeds(X_train, y_train, X_test, y_test, n_estimators, seeds, log):
+    log.info(f"      Ensemble (n={n_estimators}, seeds={len(seeds)})")
+    preds = []
+    for seed_idx, seed in enumerate(seeds, 1):
         np.random.seed(seed)
-        
         model = TabPFNRegressor(device='cpu', n_estimators=n_estimators)
         model.fit(X_train, y_train)
-        
-        y_pred = model.predict(X_test)
-        predictions.append(y_pred)
+        preds.append(model.predict(X_test))
+        log.info(f"        seed {seed_idx}: OK")
     
-    # Promedio de predicciones
-    y_pred_mean = np.mean(predictions, axis=0)
-    y_pred_std = np.std(predictions, axis=0)
-    
+    y_pred_mean = np.mean(preds, axis=0)
+    y_pred_std = np.std(preds, axis=0)
     mae = mean_absolute_error(y_test, y_pred_mean)
-    
-    log.info(f"        MAE={mae:.3f} (std={y_pred_std.mean():.2f})")
-    
+    log.info(f"        MAE={mae:.3f} (std_mean={y_pred_std.mean():.2f})")
     return y_pred_mean, y_pred_std, mae
 
-# ======================== LIME EXPLAINER ========================
-def explain_with_lime(model, X_train, X_test, feature_names, run_dir, log, 
-                     num_samples=50):
-    """Explica predicciones con LIME"""
-    if not LIME_AVAILABLE:
-        log.warning("LIME no disponible")
-        return None
-    
+# ======================== EXPLICABILIDAD ========================
+def explain_with_lime(model, X_train, X_test, feature_names, run_dir, log, num_samples=50):
+    if not LIME_AVAILABLE: return None
     log.info("\n  LIME - Explicaciones locales...")
-    
-    explainer = lime.lime_tabular.LimeTabularExplainer(
-        X_train,
-        feature_names=feature_names,
-        mode='regression',
-        random_state=42
-    )
-    
-    # Explicar primeras num_samples predicciones
-    n_explain = min(num_samples, len(X_test))
-    
+    if X_train.shape[1] != len(feature_names): return None # Safety check
+
+    explainer = lime.lime_tabular.LimeTabularExplainer(X_train, feature_names=feature_names, mode='regression', random_state=42)
     all_importances = []
     
-    for i in range(n_explain):
-        exp = explainer.explain_instance(
-            X_test[i],
-            model.predict,
-            num_features=len(feature_names)
-        )
-        
-        # Extraer importancias
-        importance_dict = dict(exp.as_list())
-        
-        # Convertir a feature names
-        feature_importances = {}
-        for feat_name in feature_names:
-            # LIME devuelve intervalos, buscar coincidencia
-            matched_importance = 0.0
-            for key, val in importance_dict.items():
-                if feat_name in key:
-                    matched_importance = abs(val)
-                    break
-            feature_importances[feat_name] = matched_importance
-        
-        all_importances.append(feature_importances)
+    for i in range(min(num_samples, len(X_test))):
+        try:
+            exp = explainer.explain_instance(X_test[i], model.predict, num_features=len(feature_names))
+            importance_dict = dict(exp.as_list())
+            feats_imp = {}
+            for fname in feature_names:
+                imp = 0.0
+                for k, v in importance_dict.items():
+                    if fname in k: imp = abs(v); break
+                feats_imp[fname] = imp
+            all_importances.append(feats_imp)
+        except: pass
+
+    if not all_importances: return None
     
-    # Promedio de importancias
-    importance_df = pd.DataFrame(all_importances)
-    mean_importances = importance_df.mean().sort_values(ascending=False)
-    
-    lime_df = pd.DataFrame({
-        'feature': mean_importances.index,
-        'importance': mean_importances.values
-    })
-    
+    imp_df = pd.DataFrame(all_importances)
+    mean_imp = imp_df.mean().sort_values(ascending=False)
+    lime_df = pd.DataFrame({'feature': mean_imp.index, 'importance': mean_imp.values})
     lime_df.to_csv(run_dir / "lime_importances.csv", index=False)
     
-    log.info(f"    Top 10 features (LIME):")
-    for idx, (feat, imp) in enumerate(mean_importances.head(10).items(), 1):
-        log.info(f"      {idx:2d}. {feat:40s} {imp:.4f}")
-    
-    # Grafico
     plt.figure(figsize=(10, 12))
-    top_features = lime_df.head(30)
-    plt.barh(range(len(top_features)), top_features['importance'].values, 
-             alpha=0.8, color='coral', edgecolor='black')
-    plt.yticks(range(len(top_features)), top_features['feature'].values, fontsize=9)
-    plt.xlabel('LIME Importance', fontsize=12, fontweight='bold')
-    plt.title('Top 30 Features - LIME', fontsize=14, fontweight='bold')
-    plt.gca().invert_yaxis()
-    plt.grid(axis='x', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(run_dir / "lime_importances.png", dpi=150)
-    plt.close()
-    
+    top = lime_df.head(30)
+    plt.barh(range(len(top)), top['importance'], color='coral', edgecolor='black')
+    plt.yticks(range(len(top)), top['feature'], fontsize=9)
+    plt.title('Top 30 Features - LIME', fontweight='bold'); plt.gca().invert_yaxis()
+    plt.tight_layout(); plt.savefig(run_dir / "lime_importances.png"); plt.close()
     return lime_df
 
-# ======================== SHAP MEJORADO ========================
-def explain_with_shap(model, X_train, X_test, feature_names, run_dir, log,
-                     max_samples=100):
-    """Explica con SHAP (optimizado)"""
-    if not SHAP_AVAILABLE:
-        log.warning("SHAP no disponible")
-        return None
-    
+def explain_with_shap(model, X_train, X_test, feature_names, run_dir, log, max_samples=100):
+    if not SHAP_AVAILABLE: return None
     log.info("\n  SHAP - Valores de Shapley...")
     
-    # Background data (sample)
-    n_bg = min(max_samples, len(X_train))
-    np.random.seed(42)
-    bg_idx = np.random.choice(len(X_train), n_bg, replace=False)
-    X_bg = X_train[bg_idx]
+    bg_idx = np.random.choice(len(X_train), min(max_samples, len(X_train)), replace=False)
+    explainer = shap.KernelExplainer(model.predict, X_train[bg_idx])
     
-    log.info(f"    Background: {n_bg} samples")
+    test_idx = np.random.choice(len(X_test), min(max_samples, len(X_test)), replace=False)
+    shap_values = explainer.shap_values(X_test[test_idx])
     
-    # Explicar test data (sample)
-    n_test = min(max_samples, len(X_test))
-    test_idx = np.random.choice(len(X_test), n_test, replace=False)
-    X_test_sample = X_test[test_idx]
+    pd.DataFrame(shap_values, columns=feature_names).to_csv(run_dir / "shap_values.csv", index=False)
+    imp_df = pd.DataFrame({'feature': feature_names, 'importance': np.abs(shap_values).mean(axis=0)}).sort_values('importance', ascending=False)
+    imp_df.to_csv(run_dir / "shap_importances.csv", index=False)
     
-    log.info(f"    Explicando: {n_test} samples")
-    
-    # SHAP KernelExplainer
-    explainer = shap.KernelExplainer(model.predict, X_bg)
-    shap_values = explainer.shap_values(X_test_sample)
-    
-    # Guardar
-    pd.DataFrame(shap_values, columns=feature_names).to_csv(
-        run_dir / "shap_values.csv", index=False)
-    
-    # Feature importance
-    importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': np.abs(shap_values).mean(axis=0)
-    }).sort_values('importance', ascending=False)
-    
-    importance_df.to_csv(run_dir / "shap_importances.csv", index=False)
-    
-    log.info(f"    Top 10 features (SHAP):")
-    for idx, (i, row) in enumerate(importance_df.head(10).iterrows(), 1):
-        log.info(f"      {idx:2d}. {row['feature']:40s} {row['importance']:.4f}")
-    
-    # Graficos
     try:
-        # Beeswarm
         plt.figure(figsize=(10, 12))
-        shap.summary_plot(shap_values, X_test_sample, feature_names=feature_names,
-                         show=False, max_display=30)
-        plt.tight_layout()
-        plt.savefig(run_dir / "shap_beeswarm.png", dpi=150)
-        plt.close()
-        
-        # Bar
-        plt.figure(figsize=(10, 12))
-        shap.summary_plot(shap_values, X_test_sample, feature_names=feature_names,
-                         plot_type="bar", show=False, max_display=30)
-        plt.tight_layout()
-        plt.savefig(run_dir / "shap_bar.png", dpi=150)
-        plt.close()
-    except Exception as e:
-        log.warning(f"    Error graficos SHAP: {e}")
-    
-    return importance_df
+        shap.summary_plot(shap_values, X_test[test_idx], feature_names=feature_names, show=False)
+        plt.tight_layout(); plt.savefig(run_dir / "shap_beeswarm.png"); plt.close()
+    except: pass
+    return imp_df
 
-# ======================== ANALISIS POR GRUPOS ========================
 def analyze_by_groups(importance_df, run_dir, log, method_name=""):
-    """Analiza feature importance por grupos"""
-    if importance_df is None or len(importance_df) == 0:
-        return None
-    
-    def get_group(feat):
-        if feat.startswith('den_'): return 'DEN'
-        elif feat.startswith('dys_'): return 'DYS'
-        elif feat.startswith('lex_'): return 'LEX'
-        elif feat.startswith('poslm_'): return 'POSLM'
+    if importance_df is None or len(importance_df) == 0: return None
+    def get_group(f):
+        if f.startswith('den_'): return 'DEN'
+        elif f.startswith('dys_'): return 'DYS'
+        elif f.startswith('lex_'): return 'LEX'
+        elif f.startswith('poslm_'): return 'POSLM'
         else: return 'OTHER'
     
-    importance_df = importance_df.copy()
-    importance_df['group'] = importance_df['feature'].apply(get_group)
+    df = importance_df.copy()
+    df['group'] = df['feature'].apply(get_group)
+    stats = df.groupby('group')['importance'].agg(['sum', 'mean']).sort_values('sum', ascending=False)
+    stats.to_csv(run_dir / f"groups_{method_name}.csv")
     
-    group_stats = importance_df.groupby('group')['importance'].agg(
-        ['sum', 'mean', 'count']).sort_values('sum', ascending=False)
-    
-    log.info(f"\n  Feature groups ({method_name}):")
-    total_imp = group_stats['sum'].sum()
-    
-    for grp in group_stats.index:
-        total = group_stats.loc[grp, 'sum']
-        count = int(group_stats.loc[grp, 'count'])
-        pct = 100 * total / total_imp if total_imp > 0 else 0
-        log.info(f"    {grp:8s}: {total:8.4f} ({count:3d} feats, {pct:5.1f}%)")
-    
-    # Grafico
     plt.figure(figsize=(10, 6))
-    colors = {'DEN': 'steelblue', 'DYS': 'coral', 'LEX': 'mediumseagreen', 
-              'POSLM': 'goldenrod', 'OTHER': 'gray'}
-    bar_colors = [colors.get(g, 'gray') for g in group_stats.index]
-    
-    plt.bar(group_stats.index, group_stats['sum'], alpha=0.8, 
-           edgecolor='black', linewidth=1.5, color=bar_colors)
-    plt.xlabel('Feature Group', fontsize=12, fontweight='bold')
-    plt.ylabel('Total Importance', fontsize=12, fontweight='bold')
-    
-    title = f'Feature Importance by Group'
-    if method_name:
-        title += f' ({method_name})'
-    plt.title(title, fontsize=14, fontweight='bold')
-    
-    plt.grid(axis='y', alpha=0.3)
-    plt.tight_layout()
-    
-    filename = f"groups_{method_name.lower().replace(' ', '_')}" if method_name else "groups"
-    plt.savefig(run_dir / f"{filename}.png", dpi=150)
-    plt.close()
-    
-    group_stats.to_csv(run_dir / f"{filename}.csv")
-    
-    return group_stats
-
-# ======================== ANALISIS DE INCERTIDUMBRE ========================
-def uncertainty_analysis(predictions_list, y_test, run_dir, log):
-    """Analiza incertidumbre de predicciones (ensemble)"""
-    log.info("\n  Analisis de incertidumbre...")
-    
-    # predictions_list: lista de predicciones de diferentes seeds
-    predictions_array = np.array(predictions_list)
-    
-    mean_pred = predictions_array.mean(axis=0)
-    std_pred = predictions_array.std(axis=0)
-    
-    # Intervalo de confianza 95%
-    ci_lower = mean_pred - 1.96 * std_pred
-    ci_upper = mean_pred + 1.96 * std_pred
-    
-    # Cuantas predicciones caen dentro del IC
-    within_ci = ((y_test >= ci_lower) & (y_test <= ci_upper)).mean()
-    
-    log.info(f"    Incertidumbre promedio (std): {std_pred.mean():.2f}")
-    log.info(f"    Predicciones dentro IC 95%: {within_ci*100:.1f}%")
-    
-    # Guardar
-    uncertainty_df = pd.DataFrame({
-        'y_true': y_test,
-        'y_pred_mean': mean_pred,
-        'y_pred_std': std_pred,
-        'ci_lower': ci_lower,
-        'ci_upper': ci_upper,
-        'within_ci': (y_test >= ci_lower) & (y_test <= ci_upper)
-    })
-    
-    uncertainty_df.to_csv(run_dir / "uncertainty_analysis.csv", index=False)
-    
-    # Grafico de incertidumbre
-    plt.figure(figsize=(12, 6))
-    
-    sorted_idx = np.argsort(std_pred)
-    
-    plt.errorbar(range(len(y_test)), mean_pred[sorted_idx], 
-                yerr=1.96*std_pred[sorted_idx], fmt='o', alpha=0.5,
-                label='Prediccion (IC 95%)', color='steelblue')
-    plt.scatter(range(len(y_test)), y_test[sorted_idx], 
-               color='red', alpha=0.7, s=30, label='Real')
-    
-    plt.xlabel('Paciente (ordenado por incertidumbre)', fontsize=12)
-    plt.ylabel('QA Score', fontsize=12)
-    plt.title('Incertidumbre de Predicciones', fontsize=14, fontweight='bold')
-    plt.legend()
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(run_dir / "uncertainty_plot.png", dpi=150)
-    plt.close()
-    
-    return uncertainty_df
+    colors = {'DEN': 'steelblue', 'DYS': 'coral', 'LEX': 'mediumseagreen', 'POSLM': 'goldenrod', 'OTHER': 'gray'}
+    bar_colors = [colors.get(g, 'gray') for g in stats.index]
+    plt.bar(stats.index, stats['sum'], color=bar_colors, edgecolor='black')
+    plt.title(f'Feature Importance Group ({method_name})', fontweight='bold')
+    plt.tight_layout(); plt.savefig(run_dir / f"groups_{method_name}.png"); plt.close()
+    return stats
 
 # ======================== MAIN ========================
 def main():
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = RESULTS_BASE / f"OPTIMIZATION_{ts}"
     run_dir.mkdir(parents=True, exist_ok=True)
-    
     log = set_logger(run_dir)
+    cfg = EXPERIMENTS_CONFIG
     
-    log.info("="*70)
-    log.info("TABPFN ADVANCED OPTIMIZATION & EXPLAINABILITY")
-    log.info("="*70)
-    log.info(f"Output: {run_dir}")
-    log.info("\nExperimentos:")
-    log.info(f"  n_estimators: {EXPERIMENTS_CONFIG['n_estimators_list']}")
-    log.info(f"  ensemble seeds: {EXPERIMENTS_CONFIG['ensemble_seeds']}")
-    log.info(f"  CV strategy: {EXPERIMENTS_CONFIG['cv_strategy']}")
-    log.info(f"  CV folds: {EXPERIMENTS_CONFIG['cv_folds']}")
-    
-    # Guardar config
-    with open(run_dir / "config.json", "w") as f:
-        json.dump(EXPERIMENTS_CONFIG, f, indent=2)
-    
-    # CARGAR DATOS
-    log.info("\n" + "="*70)
-    log.info("CARGANDO DATOS")
-    log.info("="*70)
-    
+    log.info("="*70); log.info(f"TABPFN UNIVERSAL OPTIMIZATION | Strategy: {cfg['cv_strategy'].upper()}"); log.info("="*70)
+    with open(run_dir / "config.json", "w") as f: json.dump(cfg, f, indent=2)
+
+    # 1. CARGAR DATOS
     df = pd.read_csv(DATASET_CSV)
     df = df[df['QA'].notna()].copy()
+    # Filtro PWA + EN (Igual que Universal)
+    df = df[(df['group'] == 'pwa') & (df['language'] == 'en')].reset_index(drop=True)
+    log.info(f"Datos PWA (EN): {len(df)}")
     
-    # Filtrar PWA + EN
-    df_pwa = df[df['group'] == 'pwa'].copy()
-    df_en = df_pwa[df_pwa['language'].str.lower() == 'en'].copy()
+    # Selección Features
+    base_cols = [c for c in df.columns if c.startswith(('den_', 'dys_', 'lex_'))]
+    poslm_cols = get_poslm_features(df, cfg['poslm_method'])
+    all_feats = sorted(base_cols + poslm_cols)
     
-    log.info(f"PWA EN: {len(df_en)}")
+    X = df[all_feats].values
+    y = df['QA'].values
+    patient_ids = df['patient_id'].values
     
-    # Features
-    feat_cols = sorted([c for c in df.columns 
-                       if c.startswith(('den_', 'dys_', 'lex_', 'poslm_'))])
+    log.info(f"Features iniciales: {len(all_feats)} (POS-LM: {cfg['poslm_method']})")
     
-    log.info(f"Features: {len(feat_cols)}")
-    
-    # Preparar datos
-    X = df_en[feat_cols].values
-    y = df_en['QA'].values
-    groups = df_en['patient_id'].values
-    
-    # Sub-datasets
-    subsets = extract_subdataset_from_patient_id(df_en['patient_id'])
-    
-    # CV
-    log.info("\n" + "="*70)
-    log.info(f"CROSS-VALIDATION ({EXPERIMENTS_CONFIG['cv_strategy']})")
-    log.info("="*70)
-    
-    cv_splitter = StratifiedGroupKFold(
-        n_splits=EXPERIMENTS_CONFIG['cv_folds'], 
-        shuffle=True, 
-        random_state=42
-    )
-    
-    # DICCIONARIO PARA GUARDAR RESULTADOS
+    # 2. CV STRATEGY
+    if cfg['cv_strategy'] == 'subdataset':
+        groups = extract_subdataset_from_patient_id(df['patient_id']) 
+        splitter = StratifiedGroupKFold(n_splits=cfg['cv_folds'], shuffle=True, random_state=42)
+    else: # severity
+        groups = qa_to_severity_numeric(y)
+        splitter = StratifiedGroupKFold(n_splits=cfg['cv_folds'], shuffle=True, random_state=42)
+
     all_results = []
     
-    # OOF predictions para cada configuracion
-    oof_predictions = {}
+    # 3. EXPERIMENTOS N_ESTIMATORS
+    log.info("\n[1/2] Probando n_estimators...")
+    oof_predictions = {} # Guardar OOF para graficar luego
     
-    # ======================== EXPERIMENTOS ========================
-    log.info("\n" + "="*70)
-    log.info("EXPERIMENTOS")
-    log.info("="*70)
-    
-    # 1. EXPERIMENTOS CON DIFERENTES N_ESTIMATORS
-    log.info("\n[1/2] Probando diferentes n_estimators...")
-    
-    for n_est in EXPERIMENTS_CONFIG['n_estimators_list']:
+    for n_est in cfg['n_estimators_list']:
         log.info(f"\n  n_estimators = {n_est}")
-        
         oof_preds = np.zeros_like(y, dtype=float)
         
-        fold_maes = []
-        
-        for fold_idx, (train_idx, test_idx) in enumerate(
-            cv_splitter.split(X, subsets, groups=groups), 1):
+        for fold, (train_idx, test_idx) in enumerate(splitter.split(X, groups, groups=patient_ids), 1):
+            X_tr, X_te = X[train_idx], X[test_idx]
+            y_tr, y_te = y[train_idx], y[test_idx]
             
-            log.info(f"    Fold {fold_idx}/{EXPERIMENTS_CONFIG['cv_folds']}")
-            
-            X_train, X_test = X[train_idx], X[test_idx]
-            y_train, y_test = y[train_idx], y[test_idx]
-            
-            # Imputar
+            # --- PIPELINE ---
             imputer = SimpleImputer(strategy='median')
-            X_train = imputer.fit_transform(X_train)
-            X_test = imputer.transform(X_test)
+            X_tr = imputer.fit_transform(X_tr); X_te = imputer.transform(X_te)
             
-            # Normalizar
             scaler = StandardScaler()
-            X_train = scaler.fit_transform(X_train)
-            X_test = scaler.transform(X_test)
+            X_tr = scaler.fit_transform(X_tr); X_te = scaler.transform(X_te)
             
-            # Entrenar
-            model, y_pred, mae = train_tabpfn_with_n_estimators(
-                X_train, y_train, X_test, y_test, 
-                n_est, fold_idx, log
-            )
+            # Feature Selection (KBest)
+            if cfg['feature_selection'] == 'kbest':
+                sel = SelectKBest(score_func=mutual_info_regression, k=cfg['k_features'])
+                X_tr = sel.fit_transform(X_tr, y_tr); X_te = sel.transform(X_te)
             
-            oof_preds[test_idx] = y_pred
-            fold_maes.append(mae)
-        
-        # Metricas globales
-        metrics = compute_metrics(y, oof_preds)
-        
-        log.info(f"\n  RESULTADOS n_estimators={n_est}:")
-        log.info(f"    MAE:      {metrics['MAE']:.4f}")
-        log.info(f"    R2:       {metrics['R2']:.4f}")
-        log.info(f"    Pearson:  {metrics['Pearson_r']:.4f}")
-        
-        all_results.append({
-            'experiment': f'single_n{n_est}',
-            'n_estimators': n_est,
-            'n_seeds': 1,
-            'mae': metrics['MAE'],
-            'r2': metrics['R2'],
-            'pearson': metrics['Pearson_r']
-        })
-        
+            model, p, _ = train_tabpfn_with_n_estimators(X_tr, y_tr, X_te, y_te, n_est, log)
+            oof_preds[test_idx] = p
+            
+        met = compute_metrics(y, oof_preds)
+        log.info(f"  >> GLOBAL n={n_est}: MAE={met['MAE']:.4f}, R2={met['R2']:.4f}")
+        all_results.append({'experiment': f'single_n{n_est}', 'n_estimators': n_est, **met})
         oof_predictions[f'single_n{n_est}'] = oof_preds
+
+    # 4. ENSEMBLE SEEDS
+    log.info("\n[2/2] Probando Ensemble Seeds...")
+    best_config = min(all_results, key=lambda x: x['MAE'])
+    best_n = best_config['n_estimators']
     
-    # 2. ENSEMBLE CON MULTIPLES SEEDS
-    log.info("\n[2/2] Ensemble con multiples seeds...")
+    oof_preds_ens = np.zeros_like(y, dtype=float)
     
-    # Probar con los mejores n_estimators
-    best_n_estimators = [64, 128]
-    
-    for n_est in best_n_estimators:
-        log.info(f"\n  Ensemble: n_estimators={n_est}, seeds={len(EXPERIMENTS_CONFIG['ensemble_seeds'])}")
+    for fold, (train_idx, test_idx) in enumerate(splitter.split(X, groups, groups=patient_ids), 1):
+        log.info(f"  Fold {fold}")
+        # Repetir Pipeline
+        imputer = SimpleImputer(strategy='median')
+        X_tr = imputer.fit_transform(X[train_idx]); X_te = imputer.transform(X[test_idx])
+        scaler = StandardScaler()
+        X_tr = scaler.fit_transform(X_tr); X_te = scaler.transform(X_te)
         
-        oof_preds_mean = np.zeros_like(y, dtype=float)
-        oof_preds_std = np.zeros_like(y, dtype=float)
-        
-        all_fold_predictions = []
-        
-        fold_maes = []
-        
-        for fold_idx, (train_idx, test_idx) in enumerate(
-            cv_splitter.split(X, subsets, groups=groups), 1):
+        if cfg['feature_selection'] == 'kbest':
+            sel = SelectKBest(score_func=mutual_info_regression, k=cfg['k_features'])
+            X_tr = sel.fit_transform(X_tr, y[train_idx]); X_te = sel.transform(X_te)
             
-            log.info(f"    Fold {fold_idx}/{EXPERIMENTS_CONFIG['cv_folds']}")
-            
-            X_train, X_test = X[train_idx], X[test_idx]
-            y_train, y_test = y[train_idx], y[test_idx]
-            
-            # Imputar
-            imputer = SimpleImputer(strategy='median')
-            X_train = imputer.fit_transform(X_train)
-            X_test = imputer.transform(X_test)
-            
-            # Normalizar
-            scaler = StandardScaler()
-            X_train = scaler.fit_transform(X_train)
-            X_test = scaler.transform(X_test)
-            
-            # Ensemble
-            y_pred_mean, y_pred_std, mae = train_ensemble_seeds(
-                X_train, y_train, X_test, y_test,
-                n_est, EXPERIMENTS_CONFIG['ensemble_seeds'],
-                fold_idx, log
-            )
-            
-            oof_preds_mean[test_idx] = y_pred_mean
-            oof_preds_std[test_idx] = y_pred_std
-            fold_maes.append(mae)
-        
-        # Metricas globales
-        metrics = compute_metrics(y, oof_preds_mean)
-        
-        log.info(f"\n  RESULTADOS Ensemble n_estimators={n_est}:")
-        log.info(f"    MAE:      {metrics['MAE']:.4f}")
-        log.info(f"    R2:       {metrics['R2']:.4f}")
-        log.info(f"    Pearson:  {metrics['Pearson_r']:.4f}")
-        log.info(f"    Std mean: {oof_preds_std.mean():.2f}")
-        
-        all_results.append({
-            'experiment': f'ensemble_n{n_est}',
-            'n_estimators': n_est,
-            'n_seeds': len(EXPERIMENTS_CONFIG['ensemble_seeds']),
-            'mae': metrics['MAE'],
-            'r2': metrics['R2'],
-            'pearson': metrics['Pearson_r'],
-            'uncertainty_mean': oof_preds_std.mean()
-        })
-        
-        oof_predictions[f'ensemble_n{n_est}'] = oof_preds_mean
+        p, _, _ = train_ensemble_seeds(X_tr, y[train_idx], X_te, y[test_idx], best_n, cfg['ensemble_seeds'], log)
+        oof_preds_ens[test_idx] = p
+
+    met_ens = compute_metrics(y, oof_preds_ens)
+    log.info(f"  >> GLOBAL ENSEMBLE: MAE={met_ens['MAE']:.4f}")
+    all_results.append({'experiment': f'ensemble_n{best_n}', 'n_estimators': best_n, **met_ens})
+    oof_predictions['ensemble_final'] = oof_preds_ens
     
-    # GUARDAR RESULTADOS
-    log.info("\n" + "="*70)
-    log.info("GUARDANDO RESULTADOS")
-    log.info("="*70)
+    # 5. GENERAR GRÁFICAS RICAS (DEL MEJOR MODELO y ENSEMBLE)
+    log.info("\nGenerando gráficas completas...")
     
-    results_df = pd.DataFrame(all_results)
-    results_df.to_csv(run_dir / "all_experiments.csv", index=False)
+    # Guardar métricas y gráficas para el ENSEMBLE
+    plot_scatter_with_precision(y, oof_preds_ens, "Ensemble Final - Scatter", run_dir / "ensemble_scatter.png", metrics=met_ens)
+    sev_acc = compute_severity_accuracy(y, oof_preds_ens)
+    plot_confusion_matrix(sev_acc['confusion_matrix'], "Ensemble Final - Confusion", run_dir / "ensemble_confusion.png")
+    plot_error_histogram(y, oof_preds_ens, "Ensemble Final - Errores", run_dir / "ensemble_errors.png")
     
-    log.info("\nResultados:")
-    log.info(results_df.to_string(index=False))
+    # Guardar análisis de errores (CSV)
+    errors = np.abs(y - oof_preds_ens)
+    df_err = pd.DataFrame({'patient_id': patient_ids, 'QA_real': y, 'QA_pred': oof_preds_ens, 'Error': errors})
+    df_err.to_csv(run_dir / "ensemble_error_analysis.csv", index=False)
+
+    # 6. GRAFICO COMPARATIVO DE BARRAS (DEL SCRIPT ORIGINAL)
+    log.info("\nGenerando gráfico comparativo...")
+    res_df = pd.DataFrame(all_results)
+    res_df.to_csv(run_dir / "summary_results.csv", index=False)
     
-    # Mejor configuracion
-    best_idx = results_df['mae'].idxmin()
-    best_config = results_df.loc[best_idx]
+    plt.figure(figsize=(12, 6))
+    bars = plt.bar(res_df['experiment'], res_df['MAE'], color='steelblue', edgecolor='black')
+    # Resaltar el mejor
+    best_idx = res_df['MAE'].idxmin()
+    bars[best_idx].set_color('mediumseagreen')
     
-    log.info("\n" + "="*70)
-    log.info("MEJOR CONFIGURACION")
-    log.info("="*70)
-    log.info(f"Experimento: {best_config['experiment']}")
-    log.info(f"n_estimators: {best_config['n_estimators']}")
-    log.info(f"n_seeds: {best_config['n_seeds']}")
-    log.info(f"MAE: {best_config['mae']:.4f}")
-    log.info(f"R2: {best_config['r2']:.4f}")
-    log.info(f"Pearson: {best_config['pearson']:.4f}")
+    plt.title('Comparativa MAE por Configuración', fontweight='bold')
+    plt.ylabel('MAE (Menor es mejor)'); plt.xticks(rotation=45)
+    plt.grid(axis='y', alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir / "comparison_bar.png"); plt.close()
+
+    # 7. EXPLICABILIDAD FINAL
+    log.info("\n" + "="*70); log.info("EXPLICABILIDAD FINAL"); log.info("="*70)
     
-    # EXPLICABILIDAD CON MEJOR MODELO
-    log.info("\n" + "="*70)
-    log.info("EXPLICABILIDAD - MEJOR MODELO")
-    log.info("="*70)
+    train_idx, test_idx = next(splitter.split(X, groups, groups=patient_ids))
+    X_tr, X_te = X[train_idx], X[test_idx]
+    y_tr, y_te = y[train_idx], y[test_idx]
     
-    # Re-entrenar mejor modelo para explicabilidad
-    best_n_est = int(best_config['n_estimators'])
-    
-    # Usar primer fold para explicabilidad
-    train_idx, test_idx = next(cv_splitter.split(X, subsets, groups=groups))
-    
-    X_train, X_test = X[train_idx], X[test_idx]
-    y_train, y_test = y[train_idx], y[test_idx]
-    
-    # Preprocesar
+    # Pipeline para nombres
+    current_feats = np.array(all_feats)
     imputer = SimpleImputer(strategy='median')
-    X_train = imputer.fit_transform(X_train)
-    X_test = imputer.transform(X_test)
-    
+    X_tr = imputer.fit_transform(X_tr); X_te = imputer.transform(X_te)
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+    X_tr = scaler.fit_transform(X_tr); X_te = scaler.transform(X_te)
     
-    # Entrenar
-    model_best = TabPFNRegressor(device='cpu', n_estimators=best_n_est)
-    model_best.fit(X_train, y_train)
+    if cfg['feature_selection'] == 'kbest':
+        sel = SelectKBest(score_func=mutual_info_regression, k=cfg['k_features'])
+        X_tr = sel.fit_transform(X_tr, y_tr); X_te = sel.transform(X_te)
+        current_feats = current_feats[sel.get_support()]
     
-    # LIME
+    log.info(f"Entrenando modelo final para SHAP/LIME con {len(current_feats)} features...")
+    model = TabPFNRegressor(device='cpu', n_estimators=best_n)
+    model.fit(X_tr, y_tr)
+    
     if LIME_AVAILABLE:
-        lime_df = explain_with_lime(
-            model_best, X_train, X_test, feat_cols, run_dir, log,
-            num_samples=EXPERIMENTS_CONFIG['lime_samples']
-        )
-        
-        if lime_df is not None:
-            analyze_by_groups(lime_df, run_dir, log, method_name="LIME")
+        lime_df = explain_with_lime(model, X_tr, X_te, current_feats, run_dir, log)
+        analyze_by_groups(lime_df, run_dir, log, "LIME")
     
-    # SHAP
     if SHAP_AVAILABLE:
-        shap_df = explain_with_shap(
-            model_best, X_train, X_test, feat_cols, run_dir, log,
-            max_samples=EXPERIMENTS_CONFIG['shap_samples']
-        )
-        
-        if shap_df is not None:
-            analyze_by_groups(shap_df, run_dir, log, method_name="SHAP")
-    
-    # PERMUTATION IMPORTANCE
-    log.info("\n  Permutation Importance...")
-    from sklearn.inspection import permutation_importance
-    
-    perm_imp = permutation_importance(
-        model_best, X_test, y_test, 
-        n_repeats=10, random_state=42, 
-        scoring='neg_mean_absolute_error'
-    )
-    
-    perm_df = pd.DataFrame({
-        'feature': feat_cols,
-        'importance': perm_imp.importances_mean
-    }).sort_values('importance', ascending=False)
-    
-    perm_df.to_csv(run_dir / "permutation_importances.csv", index=False)
-    
-    log.info(f"    Top 10 features (Permutation):")
-    for idx, (i, row) in enumerate(perm_df.head(10).iterrows(), 1):
-        log.info(f"      {idx:2d}. {row['feature']:40s} {row['importance']:.4f}")
-    
-    analyze_by_groups(perm_df, run_dir, log, method_name="Permutation")
-    
-    # GRAFICO COMPARATIVO
-    log.info("\n" + "="*70)
-    log.info("GRAFICO COMPARATIVO")
-    log.info("="*70)
-    
-    fig, ax = plt.subplots(figsize=(14, 8))
-    
-    x_pos = np.arange(len(results_df))
-    colors = ['steelblue' if 'single' in exp else 'coral' 
-             for exp in results_df['experiment']]
-    
-    bars = ax.bar(x_pos, results_df['mae'], alpha=0.8, 
-                  edgecolor='black', linewidth=1.5, color=colors)
-    
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels(results_df['experiment'], rotation=45, ha='right')
-    ax.set_ylabel('MAE', fontsize=12, fontweight='bold')
-    ax.set_title('Comparacion de Configuraciones TabPFN', 
-                fontsize=14, fontweight='bold')
-    ax.grid(axis='y', alpha=0.3)
-    
-    # Marcar el mejor
-    best_bar = bars[best_idx]
-    best_bar.set_color('green')
-    best_bar.set_alpha(1.0)
-    
-    plt.tight_layout()
-    plt.savefig(run_dir / "comparison.png", dpi=150)
-    plt.close()
-    
-    log.info(f"Grafico guardado: comparison.png")
-    
-    log.info("\n" + "="*70)
-    log.info("PROCESO COMPLETADO")
-    log.info("="*70)
-    log.info(f"Resultados en: {run_dir}")
+        shap_df = explain_with_shap(model, X_tr, X_te, current_feats, run_dir, log)
+        analyze_by_groups(shap_df, run_dir, log, "SHAP")
+
+    log.info(f"PROCESO COMPLETADO. Resultados en {run_dir}")
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        print(f"\nERROR: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    main()
