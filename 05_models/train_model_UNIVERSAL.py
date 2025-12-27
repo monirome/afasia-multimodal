@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# train_model_UNIVERSAL.py
+# 05_models/train_model_UNIVERSAL.py
 # -*- coding: utf-8 -*-
 """
 UNIVERSAL MODEL TRAINING - TODO INCLUIDO
@@ -97,6 +97,12 @@ SEVERITY_LABELS = ['Very Severe', 'Severe', 'Moderate', 'Mild']
 
 def qa_to_severity(qa_scores):
     return pd.cut(qa_scores, bins=SEVERITY_BINS, labels=SEVERITY_LABELS, include_lowest=True)
+
+def qa_to_severity_numeric(qa_scores):
+    """Convierte QA a severity numérica (0-3) para stratification"""
+    severity_cat = pd.Series(qa_to_severity(qa_scores))
+    mapping = {'Very Severe': 0, 'Severe': 1, 'Moderate': 2, 'Mild': 3}
+    return severity_cat.map(mapping).values
 
 # ======================== LOGGER ========================
 def set_logger(run_dir):
@@ -653,6 +659,13 @@ def main():
                        help='Hyperparameter optimization: gridsearch (exhaustivo) o optuna (bayesiano)')
     parser.add_argument('--optuna-trials', type=int, default=50,
                        help='Número de trials para Optuna (solo si --hpo-method optuna)')
+
+    # CV STRATEGY (NUEVO)
+    parser.add_argument('--cv-strategy', type=str, default='subdataset',
+                    choices=['subdataset', 'severity'],
+                    help='Estrategia de CV: subdataset (Le et al. 2018) o severity (por severidad)')
+    parser.add_argument('--cv-folds', type=int, default=4,
+                    help='Número de folds para CV outer (4=paper, 5=alternativa)')
     
     # CV Y NORMALIZACION
     parser.add_argument('--cv-inner', type=int, default=5,
@@ -696,13 +709,14 @@ def main():
         config_name += f"_POSLM-{poslm_label}"
     else:
         config_name += "_NO-POSLM"
-    
+
     if args.znorm_controls:
         config_name += "_ZNORM-CTRL"
     else:
         config_name += "_ZNORM-STD"
-    
-    config_name += "_STRATIFIED"
+
+    # AÑADIR ESTRATEGIA DE CV AL NOMBRE
+    config_name += f"_CV-{args.cv_strategy.upper()}-{args.cv_folds}FOLD"
     
     # Añadir HPO method al nombre
     if args.hpo_method == 'optuna':
@@ -726,9 +740,10 @@ def main():
     log.info(f"  HPO method:        {args.hpo_method.upper()}")
     if args.hpo_method == 'optuna':
         log.info(f"  Optuna trials:     {args.optuna_trials}")
-    log.info(f"  CV inner folds:    {args.cv_inner}")
     log.info(f"  Z-norm controls:   {args.znorm_controls}")
-    log.info(f"  Stratified CV:     True")
+    log.info(f"  CV strategy:       {args.cv_strategy}")
+    log.info(f"  CV outer folds:    {args.cv_folds}")
+    log.info(f"  CV inner folds:    {args.cv_inner}")
     log.info(f"  Dataset:           {DATASET_CSV.name}")
     log.info(f"  Exclude empty:     {args.exclude_empty}")
     if args.exclude_features:
@@ -753,6 +768,8 @@ def main():
         'config_name': config_name,
         'features': args.features,
         'poslm_method': args.poslm_method,
+        'cv_strategy': args.cv_strategy,
+        'cv_folds': args.cv_folds,
         'hpo_method': args.hpo_method,
         'optuna_trials': args.optuna_trials if args.hpo_method == 'optuna' else None,
         'cv_inner': args.cv_inner,
@@ -779,9 +796,10 @@ def main():
         f.write(f"HPO method:      {args.hpo_method}\n")
         if args.hpo_method == 'optuna':
             f.write(f"Optuna trials:   {args.optuna_trials}\n")
+        f.write(f"CV strategy:     {args.cv_strategy}\n")
+        f.write(f"CV outer folds:  {args.cv_folds}\n")
         f.write(f"CV inner folds:  {args.cv_inner}\n")
         f.write(f"Z-norm controls: {args.znorm_controls}\n")
-        f.write(f"Stratified CV:   True\n")
         f.write(f"Exclude empty:   {args.exclude_empty}\n")
         if args.exclude_features:
             f.write(f"Exclude file:    {args.exclude_features}\n")
@@ -798,6 +816,8 @@ def main():
         f.write(f"    --model {args.model} \\\n")
         f.write(f"    --features {args.features} \\\n")
         f.write(f"    --poslm-method {args.poslm_method} \\\n")
+        f.write(f"    --cv-strategy {args.cv_strategy} \\\n")
+        f.write(f"    --cv-folds {args.cv_folds} \\\n")
         f.write(f"    --hpo-method {args.hpo_method} \\\n")
         if args.hpo_method == 'optuna':
             f.write(f"    --optuna-trials {args.optuna_trials} \\\n")
@@ -1088,59 +1108,110 @@ def main():
         X_control = None
         y_control = None
     
-    # CV EN INGLÉS
+    # ======================== CV ESTRATÉGICO ========================
     log.info("\n" + "="*70)
-    if subsets_pwa_en is not None:
-        log.info("CROSS-VALIDATION (EN) - StratifiedGroupKFold por sub-dataset")
-        log.info("  * Cada fold tiene 25% de pacientes de CADA sub-dataset")
-        cv_splitter = StratifiedGroupKFold(n_splits=4, shuffle=True, random_state=42)
+
+    if args.cv_strategy == 'subdataset':
+        # ESTRATEGIA 1: Por sub-dataset (Le et al. 2018)
+        if subsets_pwa_en is None:
+            log.error("No se pudieron extraer sub-datasets de patient_id")
+            log.error("Usa --cv-strategy severity o verifica patient_id")
+            sys.exit(1)
+        
+        log.info(f"CROSS-VALIDATION - StratifiedGroupKFold por SUB-DATASET ({args.cv_folds} folds)")
+        log.info("  * Cada fold tiene pacientes de CADA sub-dataset proporcionalmente")
+        log.info("  * Método de Le et al. (2018)")
+        
+        cv_splitter = StratifiedGroupKFold(n_splits=args.cv_folds, shuffle=True, random_state=42)
         split_generator = cv_splitter.split(X_pwa_en, subsets_pwa_en, groups=groups_pwa_en)
-    else:
-        log.info("CROSS-VALIDATION (EN) - GroupKFold por paciente")
-        log.warning("  * No se encontró columna de sub-dataset, usando GroupKFold estándar")
-        cv_splitter = GroupKFold(n_splits=4)
-        split_generator = cv_splitter.split(X_pwa_en, y_pwa_en, groups=groups_pwa_en)
-    
+        stratify_variable = subsets_pwa_en
+        stratify_name = "subdataset"
+        
+    elif args.cv_strategy == 'severity':
+        # ESTRATEGIA 2: Por severidad (alternativa)
+        log.info(f"CROSS-VALIDATION - StratifiedGroupKFold por SEVERIDAD ({args.cv_folds} folds)")
+        log.info("  * Cada fold tiene pacientes de CADA nivel de severidad proporcionalmente")
+        log.info("  * Bins: Very Severe (0-25), Severe (25-50), Moderate (50-75), Mild (75-100)")
+        
+        severity_numeric = qa_to_severity_numeric(y_pwa_en)
+        
+        cv_splitter = StratifiedGroupKFold(n_splits=args.cv_folds, shuffle=True, random_state=42)
+        split_generator = cv_splitter.split(X_pwa_en, severity_numeric, groups=groups_pwa_en)
+        stratify_variable = severity_numeric
+        stratify_name = "severity"
+        
+        # Logging de distribución de severidad
+        log.info("\n  Distribución de severidad:")
+        severity_counts = pd.Series(severity_numeric).value_counts().sort_index()
+        severity_labels_map = {0: 'Very Severe', 1: 'Severe', 2: 'Moderate', 3: 'Mild'}
+        for sev_num, count in severity_counts.items():
+            log.info(f"    {severity_labels_map.get(sev_num, sev_num)}: {count} pacientes")
+
     if args.znorm_controls:
         log.info("Normalización: Z-norm con stats de controles")
     else:
         log.info("Normalización: StandardScaler")
-    
+
     log.info("HPO: {}".format(args.hpo_method.upper()))
     log.info("="*70)
     
     cv_results = []
     cv_preds = np.zeros_like(y_pwa_en, dtype=float)
-    
+
     fold_stats = []
-    subdataset_distributions = []
+    stratify_distributions = []
     
     for fold_idx, (train_idx, test_idx) in enumerate(split_generator, 1):
-        log.info("\n  Fold {}/4:".format(fold_idx))
+        log.info(f"\n  Fold {fold_idx}/{args.cv_folds}:")
         
-        # Logging de sub-datasets por fold
-        if subsets_pwa_en is not None:
-            train_subsets = subsets_pwa_en[train_idx]
-            test_subsets = subsets_pwa_en[test_idx]
-            
-            train_dist = pd.Series(train_subsets).value_counts().to_dict()
-            test_dist = pd.Series(test_subsets).value_counts().to_dict()
+        # Logging de distribución por fold
+        train_strata = stratify_variable[train_idx]
+        test_strata = stratify_variable[test_idx]
+        
+        if stratify_name == "subdataset":
+            train_dist = pd.Series(train_strata).value_counts().to_dict()
+            test_dist = pd.Series(test_strata).value_counts().to_dict()
             
             log.info("    Train sub-datasets: {}".format(train_dist))
             log.info("    Test sub-datasets:  {}".format(test_dist))
             
-            for subset in np.unique(subsets_pwa_en):
-                subdataset_distributions.append({
+            for subset in np.unique(stratify_variable):
+                stratify_distributions.append({
                     'fold': fold_idx,
                     'split': 'train',
-                    'subdataset': subset,
+                    'stratum': subset,
                     'count': train_dist.get(subset, 0)
                 })
-                subdataset_distributions.append({
+                stratify_distributions.append({
                     'fold': fold_idx,
                     'split': 'test',
-                    'subdataset': subset,
+                    'stratum': subset,
                     'count': test_dist.get(subset, 0)
+                })
+        
+        elif stratify_name == "severity":
+            train_dist = pd.Series(train_strata).value_counts().to_dict()
+            test_dist = pd.Series(test_strata).value_counts().to_dict()
+            
+            severity_labels_map = {0: 'Very Severe', 1: 'Severe', 2: 'Moderate', 3: 'Mild'}
+            train_dist_named = {severity_labels_map[k]: v for k, v in train_dist.items()}
+            test_dist_named = {severity_labels_map[k]: v for k, v in test_dist.items()}
+            
+            log.info("    Train severity: {}".format(train_dist_named))
+            log.info("    Test severity:  {}".format(test_dist_named))
+            
+            for sev_num in np.unique(stratify_variable):
+                stratify_distributions.append({
+                    'fold': fold_idx,
+                    'split': 'train',
+                    'stratum': severity_labels_map[sev_num],
+                    'count': train_dist.get(sev_num, 0)
+                })
+                stratify_distributions.append({
+                    'fold': fold_idx,
+                    'split': 'test',
+                    'stratum': severity_labels_map[sev_num],
+                    'count': test_dist.get(sev_num, 0)
                 })
         
         # Preparar datos del fold
@@ -1230,10 +1301,10 @@ def main():
         cv_results.append(fold_result)
     
     pd.DataFrame(cv_results).to_csv(run_dir / "cv_results_by_fold.csv", index=False)
-    
-    if subdataset_distributions:
-        pd.DataFrame(subdataset_distributions).to_csv(run_dir / "subdataset_distribution.csv", index=False)
-        log.info("\nDistribución de sub-datasets guardada")
+
+    if stratify_distributions:
+        pd.DataFrame(stratify_distributions).to_csv(run_dir / f"cv_{stratify_name}_distribution.csv", index=False)
+        log.info(f"\nDistribución de {stratify_name} guardada")
     
     if args.znorm_controls and fold_stats:
         stats_df_list = []

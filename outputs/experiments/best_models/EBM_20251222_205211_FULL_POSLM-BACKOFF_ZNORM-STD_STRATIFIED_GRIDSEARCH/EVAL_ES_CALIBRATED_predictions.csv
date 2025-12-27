@@ -1,5 +1,0 @@
-QA_real,QA_pred_cont,QA_pred_int,severity_real,severity_pred,error_cont,error_int,abs_error_int,patient_id
-77.3,24.18,24,Mild,Very Severe,-53.12,-53.3,53.3,TCU02a
-83.8,28.454545454545453,28,Mild,Severe,-55.345454545454544,-55.8,55.8,TCU04a
-62.6,39.644444444444446,40,Moderate,Severe,-22.955555555555556,-22.6,22.6,TCU06a
-77.6,27.779999999999994,28,Mild,Severe,-49.82,-49.599999999999994,49.599999999999994,TCU10a

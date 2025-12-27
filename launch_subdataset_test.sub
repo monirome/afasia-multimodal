@@ -1,0 +1,22 @@
+universe   = vanilla
+getenv     = True
+executable = jobs/run_subdataset_replication.sh
+
+# POTENCIA DE CÁLCULO
+# Pedimos 12 CPUs para que vaya rápido, igual que el último
+request_memory = 16GB
+request_cpus   = 12
+
+# ARGUMENTOS
+# Modelo: tabpfn
+# Features: full (¡La clave!)
+# Strategy: severity (La que mejor funciona)
+# Nota: TabPFN_Full_Severity_64est_FINAL
+arguments  = tabpfn full backoff severity 4 TabPFN_Full_Severity_64est_FINAL
+
+# LOGS
+output = logs/sev_full_final.out
+error  = logs/sev_full_final.err
+log    = logs/sev_full_final.log
+
+queue

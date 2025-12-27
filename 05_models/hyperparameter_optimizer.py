@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# 05_models/hyperparameter_optimizer.py
+
 """
 HYPERPARAMETER OPTIMIZER - Versión expandida con Optuna
 Soporta GridSearch y Optuna para todos los modelos
@@ -332,7 +334,7 @@ def optimize_hyperparameters(model, X, y, cv, model_name, method='gridsearch',
         verbose: Logs
     
     Returns:
-        best_model: Modelo con mejores params
+        best_model: Modelo con mejores params (y ENTRENADO)
         best_params: Dict de mejores params
         best_score: Mejor MAE
         n_trials_used: Número de combinaciones probadas
@@ -341,7 +343,10 @@ def optimize_hyperparameters(model, X, y, cv, model_name, method='gridsearch',
     if method == 'gridsearch':
         # GridSearch exhaustivo
         if param_grid is None or len(param_grid) == 0:
-            # Sin params, retornar modelo base
+            # === CORRECCIÓN: ENTRENAR AUNQUE NO HAYA PARAMS ===
+            # Esto es vital para TabPFN que tiene param_grid vacío
+            model.fit(X, y)
+            # ==================================================
             return model, {}, float('inf'), 1
         
         grid_search = GridSearchCV(

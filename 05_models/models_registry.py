@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# 05_models/models_registry.py
+
 """
 REGISTRY DE MODELOS - Versión expandida con modelos avanzados
 Modelos disponibles: svr, lgbm, xgb, catboost, rf, elasticnet, tabpfn, ngboost, ebm, tabnet, symreg
@@ -243,11 +245,11 @@ def get_model_and_param_grids(model_name):
         if not TABPFN_AVAILABLE:
             raise ImportError("TabPFN no está instalado")
         
-        model = TabPFNRegressor(device='cpu', N_ensemble_configurations=8)
+        model = TabPFNRegressor(device='cpu', n_estimators=8)
         
         # TabPFN no tiene hiperparámetros tradicionales
         param_grid_train = {}
-        param_grid_logger = {'N_ensemble_configurations': 8}
+        param_grid_logger = {'n_estimators': 8}
     
     # =========================================================================
     # NGBOOST (NUEVO)

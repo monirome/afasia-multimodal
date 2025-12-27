@@ -1,8 +1,0 @@
-Universe = vanilla
-Executable = /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/06_esemble/launcher_nelder.sh
-Log = /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/06_esemble/nelder.log
-Output = /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/06_esemble/nelder.out
-Error = /lhome/ext/upc150/upc1503/afasia_cat/codigos_julio2025/06_esemble/nelder.err
-RequestCpus = 4
-RequestMemory = 8GB
-Queue

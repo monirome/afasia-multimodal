@@ -1,0 +1,17 @@
+# jobs/launch_ensemble.sub
+# Submit file para HTCondor - Ensemble Final
+
+universe   = vanilla
+getenv     = True
+executable = jobs/run_ensemble_job.sh
+
+# --- RECURSOS ---
+request_cpus   = 12
+request_memory = 24GB
+
+# --- LOGS CON TIMESTAMP ---
+output = logs/ensemble_$(Cluster).$(Process).out
+error  = logs/ensemble_$(Cluster).$(Process).err
+log    = logs/ensemble_$(Cluster).$(Process).log
+
+queue 1

@@ -1,0 +1,464 @@
+#!/usr/bin/env python3
+# 05_models/models_registry.py
+
+"""
+REGISTRY DE MODELOS - Versión expandida con modelos avanzados
+Modelos disponibles: svr, lgbm, xgb, catboost, rf, elasticnet, tabpfn, ngboost, ebm, tabnet, symreg
+"""
+
+import numpy as np
+from sklearn.svm import SVR
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import ElasticNet
+
+# Modelos básicos
+try:
+    from lightgbm import LGBMRegressor
+    LGBM_AVAILABLE = True
+except ImportError:
+    LGBM_AVAILABLE = False
+    print("WARNING: LightGBM no disponible")
+
+try:
+    from xgboost import XGBRegressor
+    XGB_AVAILABLE = True
+except ImportError:
+    XGB_AVAILABLE = False
+    print("WARNING: XGBoost no disponible")
+
+try:
+    from catboost import CatBoostRegressor
+    CATBOOST_AVAILABLE = True
+except ImportError:
+    CATBOOST_AVAILABLE = False
+    print("WARNING: CatBoost no disponible")
+
+try:
+    from tabpfn import TabPFNRegressor
+    TABPFN_AVAILABLE = True
+except ImportError:
+    TABPFN_AVAILABLE = False
+    print("WARNING: TabPFN no disponible")
+
+# NUEVOS MODELOS AVANZADOS
+try:
+    from ngboost import NGBRegressor
+    from ngboost.distns import Normal
+    NGBOOST_AVAILABLE = True
+except ImportError:
+    NGBOOST_AVAILABLE = False
+    print("WARNING: NGBoost no disponible - pip install ngboost")
+
+try:
+    from interpret.glassbox import ExplainableBoostingRegressor
+    EBM_AVAILABLE = True
+except ImportError:
+    EBM_AVAILABLE = False
+    print("WARNING: EBM no disponible - pip install interpret")
+
+try:
+    from pytorch_tabnet.tab_model import TabNetRegressor
+    TABNET_AVAILABLE = True
+except ImportError:
+    TABNET_AVAILABLE = False
+    print("WARNING: TabNet no disponible - pip install pytorch-tabnet")
+
+try:
+    from gplearn.genetic import SymbolicRegressor
+    SYMREG_AVAILABLE = True
+except ImportError:
+    SYMREG_AVAILABLE = False
+    print("WARNING: SymbolicRegressor no disponible - pip install gplearn")
+
+# =============================================================================
+# FUNCIÓN PRINCIPAL
+# =============================================================================
+
+def get_model_and_param_grids(model_name):
+    """
+    Retorna modelo base y param grids para GridSearch y logging
+    
+    Returns:
+        model: Modelo instanciado
+        param_grid_train: Dict para GridSearch/Optuna durante entrenamiento
+        param_grid_logger: Dict simplificado para logging
+    """
+    
+    model_name = model_name.lower()
+    
+    # =========================================================================
+    # SVR
+    # =========================================================================
+    if model_name == 'svr':
+        model = SVR(kernel='rbf', cache_size=500)
+        
+        param_grid_train = {
+            'C': [0.1, 1, 10, 100],
+            'epsilon': [0.01, 0.1, 0.5, 1.0],
+            'gamma': ['scale', 'auto', 0.001, 0.01]
+        }
+        
+        param_grid_logger = {
+            'kernel': 'rbf',
+            'C': [0.1, 1, 10, 100],
+            'epsilon': [0.01, 0.1, 0.5, 1.0],
+            'gamma': ['scale', 'auto']
+        }
+    
+    # =========================================================================
+    # LIGHTGBM
+    # =========================================================================
+    elif model_name == 'lgbm':
+        if not LGBM_AVAILABLE:
+            raise ImportError("LightGBM no está instalado")
+        
+        model = LGBMRegressor(
+            verbosity=-1,
+            force_col_wise=True,
+            random_state=42
+        )
+        
+        param_grid_train = {
+            'n_estimators': [500, 1000],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'num_leaves': [31, 63, 127],
+            'max_depth': [-1, 10, 20],
+            'min_child_samples': [20, 50],
+            'subsample': [0.8, 1.0],
+            'colsample_bytree': [0.8, 1.0],
+            'reg_alpha': [0, 0.1],
+            'reg_lambda': [0, 0.1]
+        }
+        
+        param_grid_logger = {
+            'n_estimators': [500, 1000],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'num_leaves': [31, 63],
+            'max_depth': [-1, 10]
+        }
+    
+    # =========================================================================
+    # XGBOOST
+    # =========================================================================
+    elif model_name == 'xgb':
+        if not XGB_AVAILABLE:
+            raise ImportError("XGBoost no está instalado")
+        
+        model = XGBRegressor(
+            tree_method='hist',
+            random_state=42,
+            verbosity=0
+        )
+        
+        param_grid_train = {
+            'n_estimators': [500, 1000],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'max_depth': [3, 6, 10],
+            'min_child_weight': [1, 3, 5],
+            'subsample': [0.8, 1.0],
+            'colsample_bytree': [0.8, 1.0],
+            'gamma': [0, 0.1, 0.2],
+            'reg_alpha': [0, 0.1],
+            'reg_lambda': [1, 2]
+        }
+        
+        param_grid_logger = {
+            'n_estimators': [500, 1000],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'max_depth': [3, 6, 10]
+        }
+    
+    # =========================================================================
+    # CATBOOST
+    # =========================================================================
+    elif model_name == 'catboost':
+        if not CATBOOST_AVAILABLE:
+            raise ImportError("CatBoost no está instalado")
+        
+        model = CatBoostRegressor(
+            verbose=0,
+            random_state=42,
+            thread_count=1
+        )
+        
+        param_grid_train = {
+            'iterations': [500, 1000],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'depth': [4, 6, 8, 10],
+            'l2_leaf_reg': [1, 3, 5],
+            'bagging_temperature': [0, 0.5, 1.0],
+            'random_strength': [0, 0.5, 1.0]
+        }
+        
+        param_grid_logger = {
+            'iterations': [500, 1000],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'depth': [4, 6, 8, 10]
+        }
+    
+    # =========================================================================
+    # RANDOM FOREST
+    # =========================================================================
+    elif model_name == 'rf':
+        model = RandomForestRegressor(
+            random_state=42,
+            n_jobs=1
+        )
+        
+        param_grid_train = {
+            'n_estimators': [100, 300, 500],
+            'max_depth': [10, 20, None],
+            'min_samples_split': [2, 5, 10],
+            'min_samples_leaf': [1, 2, 4],
+            'max_features': ['sqrt', 'log2']
+        }
+        
+        param_grid_logger = {
+            'n_estimators': [100, 300, 500],
+            'max_depth': [10, 20, None],
+            'max_features': ['sqrt', 'log2']
+        }
+    
+    # =========================================================================
+    # ELASTIC NET
+    # =========================================================================
+    elif model_name == 'elasticnet':
+        model = ElasticNet(
+            random_state=42,
+            max_iter=5000
+        )
+        
+        param_grid_train = {
+            'alpha': [0.001, 0.01, 0.1, 1.0, 10.0],
+            'l1_ratio': [0.1, 0.3, 0.5, 0.7, 0.9]
+        }
+        
+        param_grid_logger = {
+            'alpha': [0.001, 0.01, 0.1, 1.0],
+            'l1_ratio': [0.1, 0.5, 0.9]
+        }
+    
+    # =========================================================================
+    # TABPFN
+    # =========================================================================
+    elif model_name == 'tabpfn':
+        if not TABPFN_AVAILABLE:
+            raise ImportError("TabPFN no está instalado")
+        
+        model = TabPFNRegressor(device='cpu', N_ensemble_configurations=8)
+        
+        # TabPFN no tiene hiperparámetros tradicionales
+        param_grid_train = {}
+        param_grid_logger = {'N_ensemble_configurations': 8}
+    
+    # =========================================================================
+    # NGBOOST (NUEVO)
+    # =========================================================================
+    elif model_name == 'ngboost':
+        if not NGBOOST_AVAILABLE:
+            raise ImportError("NGBoost no está instalado - pip install ngboost")
+        
+        model = NGBRegressor(
+            Dist=Normal,
+            verbose=False,
+            random_state=42
+        )
+        
+        param_grid_train = {
+            'n_estimators': [500, 1000],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'minibatch_frac': [0.5, 0.8, 1.0],
+            'col_sample': [0.8, 1.0]
+        }
+        
+        param_grid_logger = {
+            'n_estimators': [500, 1000],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'distribution': 'Normal'
+        }
+    
+    # =========================================================================
+    # EBM - EXPLAINABLE BOOSTING MACHINE (NUEVO)
+    # =========================================================================
+    elif model_name == 'ebm':
+        if not EBM_AVAILABLE:
+            raise ImportError("EBM no está instalado - pip install interpret")
+        
+        model = ExplainableBoostingRegressor(
+            random_state=42,
+            n_jobs=1
+        )
+        
+        param_grid_train = {
+            'max_bins': [128, 256],
+            'max_interaction_bins': [16, 32],
+            'interactions': [5, 10, 20],
+            'learning_rate': [0.01, 0.05],
+            'min_samples_leaf': [2, 5]
+        }
+        
+        param_grid_logger = {
+            'max_bins': [128, 256],
+            'interactions': [5, 10, 20],
+            'learning_rate': [0.01, 0.05]
+        }
+    
+    # =========================================================================
+    # TABNET (CON FIX PARA DIMENSIONES)
+    # =========================================================================
+    elif model_name == 'tabnet':
+        if not TABNET_AVAILABLE:
+            raise ImportError("TabNet no está instalado - pip install pytorch-tabnet")
+        
+        # --- INICIO DEL FIX: Wrapper para corregir dimensiones ---
+        from sklearn.base import BaseEstimator, RegressorMixin
+        
+        class TabNetWrapper(BaseEstimator, RegressorMixin):
+            def __init__(self, n_d=8, n_a=8, n_steps=3, gamma=1.3, 
+                         lambda_sparse=1e-3, optimizer_params=None, verbose=0, seed=42):
+                self.n_d = n_d
+                self.n_a = n_a
+                self.n_steps = n_steps
+                self.gamma = gamma
+                self.lambda_sparse = lambda_sparse
+                self.optimizer_params = optimizer_params if optimizer_params else dict(lr=2e-2)
+                self.verbose = verbose
+                self.seed = seed
+                self.model = None
+
+            def fit(self, X, y, **kwargs):
+                # Instanciar el modelo real aquí
+                self.model = TabNetRegressor(
+                    n_d=self.n_d, n_a=self.n_a, n_steps=self.n_steps, 
+                    gamma=self.gamma, lambda_sparse=self.lambda_sparse,
+                    optimizer_params=self.optimizer_params,
+                    verbose=self.verbose, seed=self.seed
+                )
+                # EL TRUCO: Convertir vector (N,) a matriz (N, 1)
+                if y.ndim == 1:
+                    y = y.reshape(-1, 1)
+                self.model.fit(X, y, **kwargs)
+                return self
+
+            def predict(self, X):
+                # Devolver vector plano (N,) para que el resto del código no se queje
+                return self.model.predict(X).flatten()
+        
+        model = TabNetWrapper()
+        # --- FIN DEL FIX ---
+        
+        param_grid_train = {
+            'n_d': [8, 16, 32],
+            'n_a': [8, 16, 32],
+            'n_steps': [3, 5],
+            'gamma': [1.3, 1.5],
+            'lambda_sparse': [0.0001, 0.001],
+            'optimizer_params': [dict(lr=2e-2)]
+        }
+        
+        param_grid_logger = {
+            'n_d': [8, 16, 32],
+            'n_a': [8, 16, 32],
+            'n_steps': [3, 5]
+        }
+    
+    # =========================================================================
+    # SYMBOLIC REGRESSION (NUEVO)
+    # =========================================================================
+    elif model_name == 'symreg':
+        if not SYMREG_AVAILABLE:
+            raise ImportError("SymbolicRegressor no está instalado - pip install gplearn")
+        
+        model = SymbolicRegressor(
+            random_state=42,
+            verbose=0,
+            n_jobs=1
+        )
+        
+        param_grid_train = {
+            'population_size': [1000, 2000],
+            'generations': [20, 50],
+            'tournament_size': [20, 50],
+            'stopping_criteria': [0.01, 0.001],
+            'p_crossover': [0.7, 0.9],
+            'p_subtree_mutation': [0.01, 0.1],
+            'p_hoist_mutation': [0.01, 0.05],
+            'p_point_mutation': [0.01, 0.05],
+            'max_samples': [0.9, 1.0]
+        }
+        
+        param_grid_logger = {
+            'population_size': [1000, 2000],
+            'generations': [20, 50],
+            'functions': ['add', 'sub', 'mul', 'div']
+        }
+    
+    else:
+        raise ValueError(f"Modelo '{model_name}' no reconocido. "
+                        f"Opciones: svr, lgbm, xgb, catboost, rf, elasticnet, tabpfn, "
+                        f"ngboost, ebm, tabnet, symreg")
+    
+    return model, param_grid_train, param_grid_logger
+
+# =============================================================================
+# FUNCIÓN AUXILIAR: LISTAR MODELOS DISPONIBLES
+# =============================================================================
+
+def list_available_models():
+    """Lista todos los modelos disponibles con su estado"""
+    
+    models_status = {
+        'svr': True,
+        'rf': True,
+        'elasticnet': True,
+        'lgbm': LGBM_AVAILABLE,
+        'xgb': XGB_AVAILABLE,
+        'catboost': CATBOOST_AVAILABLE,
+        'tabpfn': TABPFN_AVAILABLE,
+        'ngboost': NGBOOST_AVAILABLE,
+        'ebm': EBM_AVAILABLE,
+        'tabnet': TABNET_AVAILABLE,
+        'symreg': SYMREG_AVAILABLE
+    }
+    
+    print("\n" + "="*70)
+    print("MODELOS DISPONIBLES")
+    print("="*70)
+    
+    available = []
+    unavailable = []
+    
+    for model_name, is_available in models_status.items():
+        if is_available:
+            available.append(model_name)
+            print(f"  ✓ {model_name.upper():<15} - DISPONIBLE")
+        else:
+            unavailable.append(model_name)
+            print(f"  ✗ {model_name.upper():<15} - NO DISPONIBLE")
+    
+    print("\n" + "="*70)
+    print(f"Total disponibles: {len(available)}/{len(models_status)}")
+    
+    if unavailable:
+        print("\nPara instalar modelos faltantes:")
+        install_cmds = {
+            'lgbm': 'pip install lightgbm',
+            'xgb': 'pip install xgboost',
+            'catboost': 'pip install catboost',
+            'tabpfn': 'pip install tabpfn',
+            'ngboost': 'pip install ngboost',
+            'ebm': 'pip install interpret',
+            'tabnet': 'pip install pytorch-tabnet',
+            'symreg': 'pip install gplearn'
+        }
+        
+        for model in unavailable:
+            if model in install_cmds:
+                print(f"  {install_cmds[model]} --break-system-packages")
+    
+    print("="*70 + "\n")
+    
+    return available, unavailable
+
+if __name__ == "__main__":
+    list_available_models()
